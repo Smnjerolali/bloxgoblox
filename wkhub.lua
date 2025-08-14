@@ -2041,6 +2041,114 @@ local selectedCP = 1
 			if busy then return end
 			busy = true
 			teleportTo(areaName, selectedCP)
+			-- Post-teleport ensure contact for Mount Daun cp5
+			if areaName == "MountDaun" and selectedCP == 5 then
+				task.spawn(function()
+					task.wait(0.9) -- let streamed parts load
+					local char = player.Character or player.CharacterAdded:Wait()
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					local hrp = char and char:FindFirstChild("HumanoidRootPart")
+					if not hum or not hrp then return end
+					local function pickBase(model)
+						if model.PrimaryPart then return model.PrimaryPart end
+						return model:FindFirstChildWhichIsA("BasePart")
+					end
+					local function findNode()
+						local ws = workspace
+						local cp = ws:FindFirstChild("Checkpoints")
+						if cp then
+							return cp:FindFirstChild("5") or cp:FindFirstChild("CP5") or cp:FindFirstChild("Puncak") or cp:FindFirstChild("Summit") or cp:FindFirstChild("Finish")
+						end
+						-- Fallback: broad name scan
+						for _, inst in ipairs(ws:GetDescendants()) do
+							local n = inst.Name:lower()
+							if (n:find("daun") or n:find("puncak") or n:find("summit")) and (inst:IsA("BasePart") or inst:IsA("Model")) then
+								return inst
+							end
+						end
+						return nil
+					end
+					local node = findNode()
+					if not node then
+						pcall(function()
+							local plr = Players.LocalPlayer
+							if plr and plr.RequestStreamAroundAsync then
+								plr:RequestStreamAroundAsync((baseCF and baseCF.Position) or hrp.Position)
+							end
+						end)
+						task.wait(1.1)
+						node = findNode()
+						if not node and workspace.GetPartBoundsInBox then
+							local boxCF = baseCF or hrp.CFrame
+							local parts = workspace:GetPartBoundsInBox(boxCF, Vector3.new(80, 40, 80))
+							local best, bestDist
+							local bp = (baseCF and baseCF.Position) or hrp.Position
+							for _,p in ipairs(parts) do
+								if p and p:IsA("BasePart") then
+									local n = p.Name:lower()
+									local mark = n:find("puncak") or n:find("summit") or n:find("checkpoint") or n:find("finish")
+									local hasTT = p:FindFirstChildOfClass("TouchTransmitter") ~= nil
+									if hasTT or mark then
+										local d = (p.Position - bp).Magnitude
+										if not bestDist or d < bestDist then bestDist = d; best = p end
+									end
+								end
+							end
+							node = best
+						end
+					end
+					local baseCF, basePart, hx, hz
+					if node then
+						if node:IsA("BasePart") then
+							basePart = node; baseCF = node.CFrame; hx = node.Size.X/2; hz = node.Size.Z/2
+						elseif node:IsA("Model") then
+							basePart = pickBase(node)
+							local ext = node:GetExtentsSize()
+							baseCF = (basePart and basePart.CFrame) or node:GetPivot()
+							hx = ext.X/2; hz = ext.Z/2
+						end
+					end
+					if not baseCF then
+						local cf = Config and Config.Teleports and Config.Teleports.MountDaun and Config.Teleports.MountDaun[5]
+						baseCF = typeof(cf) == "CFrame" and cf or (hrp.CFrame)
+						hx, hz = 10, 10
+					end
+					local touched = false
+					local conns = {}
+					local function setupTouched(p)
+						if p and p:IsA("BasePart") then
+							local c = p.Touched:Connect(function(other)
+								if other and other:IsDescendantOf(char) then touched = true end
+							end)
+							table.insert(conns, c)
+						end
+					end
+					setupTouched(basePart)
+					local function moveToLocal(dx, dy, dz, hold)
+						local targetCF = baseCF * CFrame.new(dx, dy, dz)
+						hum:MoveTo(targetCF.Position)
+						local finished = false
+						local c; c = hum.MoveToFinished:Connect(function() finished = true end)
+						local t, timeout = 0, 1.6
+						while t < timeout and not finished do task.wait(0.05); t += 0.05 end
+						if c then c:Disconnect() end
+						if hold then task.wait(hold) end
+					end
+					-- passes
+					hrP = hrp
+					hrP.CFrame = baseCF * CFrame.new(0, 1.6, -(hz))
+					moveToLocal(0, 1.2, hz, 0.2)
+					moveToLocal(-hx, 1.2, 0, 0.15)
+					moveToLocal(hx, 1.2, 0, 0.15)
+					-- drop
+					hrP.CFrame = baseCF * CFrame.new(0, 1.3, 0)
+					hum:ChangeState(Enum.HumanoidStateType.Jumping)
+					task.wait(0.08)
+					hrP.Velocity = Vector3.new(0, -40, 0)
+					task.wait(0.45)
+					for _,c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+				end)
+			end
 			task.delay(0.3, function() busy = false end)
 		end)
 	end
