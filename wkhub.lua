@@ -1,3 +1,4 @@
+
 --!strict
 -- WKHub - Hunt GUI (single LocalScript)
 -- Tabs: Main, Hunt, Teleport, Misc, Info, Server
@@ -446,6 +447,17 @@ local Config = {
 		-- Optional: hardcode coordinates here if needed
 	}
 }
+-- Mount Daun cp5 override (precise CFrame)
+ do
+    Config.Teleports = Config.Teleports or {}
+    Config.Teleports.MountDaun = Config.Teleports.MountDaun or {}
+    Config.Teleports.MountDaun[5] = CFrame.fromMatrix(
+        Vector3.new(-3231.3310546875, 1718.792724609375, -2590.8115234375),
+        Vector3.new(0.7366656064987183, -0.02419755980372429, 0.6758242249488831), -- right
+        Vector3.new(-0.031430911272764206, 0.9970545172691345, 0.06995955109596252), -- up
+        Vector3.new(-0.6755264401435852, -0.07277856767177582, 0.733735203742981) -- back = -look
+    )
+ end
 
 local function getInstanceCFrame(inst): CFrame?
 	if inst == nil then return nil end
@@ -2033,7 +2045,7 @@ local selectedCP = 1
 		end)
 	end
 
-	createTeleportSection("Mount Daun Teleport", "MountDaun", 4)
+	createTeleportSection("Mount Daun Teleport", "MountDaun", 5)
 	createTeleportSection("Mount Sibuatan Teleport", "MountSibuatan", 46)
 	createTeleportSection("Mount Yagataw Teleport", "MountYagataw", 8)
 
