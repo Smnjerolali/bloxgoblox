@@ -439,6 +439,10 @@ end
 -- Utility: get CFrame for a teleport target (area + cpIndex)
 local Config = {
 	Teleports = {
+
+  MountTalamau = {
+    [1] = CFrame.new(-541.674255, 1066.55505, 269.842834, 0.999937713, -0.0111552076, 0.000419737771, 0.00461115967, 0.378511071, -0.92558527, 0.0101662204, 0.92552948, 0.378538907)
+  },
 		-- Optional: hardcode coordinates here if needed
 	}
 }
@@ -447,6 +451,12 @@ local function getInstanceCFrame(inst): CFrame?
 	if inst == nil then return nil end
 	if inst:IsA("BasePart") then
 		return inst.CFrame
+	end
+	if inst:IsA("Attachment") then
+		local ok, cf = pcall(function()
+			return (inst :: Attachment).WorldCFrame
+		end)
+		if ok then return cf end
 	end
 	if inst:IsA("Model") then
 		local m = inst :: Model
@@ -457,8 +467,16 @@ local function getInstanceCFrame(inst): CFrame?
 			end
 		end
 	end
+	-- Generic container fallback (e.g., Folder)
+	for _, d in ipairs(inst:GetDescendants()) do
+		if d:IsA("BasePart") then
+			return (d :: BasePart).CFrame
+		end
+	end
 	return nil
 end
+
+
 
 local function findTeleportCFrame(area, cpIndex): CFrame?
 	-- 1) Manual config override
@@ -474,7 +492,44 @@ local function findTeleportCFrame(area, cpIndex): CFrame?
 	end
 
 -- 1b) Special-case: MountYagataw uses numeric children: workspace.Checkpoints["<index>"]
-	if area == "MountYagataw" then
+		-- 1a-extended) Fallbacks for MountTalamau cp1 when SummitTrigger missing
+	if area == "MountTalamau" and cpIndex == 1 then
+		-- AutoFallbackMountTalamau
+		local candidateNames = { "Summit", "Puncak", "Summit Trigger", "Summit_Trigger", "MountTalamauSummit", "TalamauSummit", "SummitTalamau" }
+		for _, nm in ipairs(candidateNames) do
+			local node = workspace:FindFirstChild(nm)
+			local cf = getInstanceCFrame(node)
+			if cf then return cf end
+		end
+		local checkpoints = workspace:FindFirstChild("Checkpoints")
+		if checkpoints then
+			local cands = { "Summit", "Puncak", "Checkpoint1", "1" }
+			for _, nm in ipairs(cands) do
+				local node = checkpoints:FindFirstChild(nm)
+				local cf = getInstanceCFrame(node)
+				if cf then return cf end
+			end
+		end
+		local tpRoot = workspace:FindFirstChild("TeleportPoints")
+		if tpRoot then
+			local areaFolder = tpRoot:FindFirstChild("MountTalamau")
+			if areaFolder then
+				local cands = { "Summit", "Puncak", "CP1", "1" }
+				for _, nm in ipairs(cands) do
+					local node = areaFolder:FindFirstChild(nm)
+					local cf = getInstanceCFrame(node)
+					if cf then return cf end
+				end
+			end
+		end
+		for _, inst in ipairs(workspace:GetDescendants()) do
+			if inst.Name == "SummitTrigger" then
+				local cf = getInstanceCFrame(inst)
+				if cf then return cf end
+			end
+		end
+	end
+if area == "MountYagataw" then
 		local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
 		if checkpointsFolder then
 			local node = checkpointsFolder:FindFirstChild(tostring(cpIndex))
@@ -1535,191 +1590,6 @@ do
 		end
 		-- cpOptionsOverrideTalamau
 		if areaName == "MountTalamau" then
-			cpOptions = {"Summit"}
-		end
-
-
-		if areaName == "MountHoreg" and maxCheckpoint >= 5 then
-			cpOptions[5] = "Puncak"
-		end
-		if areaName == "MountYagataw" then
-			local loopToggle = New("TextButton", {
-				Name = "LoopToggle",
-				Text = "Loop: OFF",
-				Font = Enum.Font.GothamSemibold,
-				TextSize = 16,
-				TextColor3 = Colors.TextPrimary,
-				AutoButtonColor = false,
-				BackgroundColor3 = Colors.Surface2,
-				BackgroundTransparency = 0.2,
-				Position = UDim2.fromOffset(14, 86),
-				Size = UDim2.fromOffset(120, 34),
-				Parent = section,
-				ZIndex = 20,
-			}, {})
-			addCorner(loopToggle, 10)
-			addStroke(loopToggle, Colors.Stroke, 1, 0.4)
-			local function applyLoopUI(lp)
-				tween(loopToggle, TweenInfo.new(0.12), {
-					BackgroundTransparency = lp and 0.05 or 0.2,
-					BackgroundColor3 = lp and Colors.Accent or Colors.Surface2,
-				})
-				loopToggle.Text = "Loop: " .. (lp and "ON" or "OFF")
-			end
-			if player:GetAttribute("AutoSummitYagatawLoop") == nil then
-				player:SetAttribute("AutoSummitYagatawLoop", false)
-			end
-			local loop = (player:GetAttribute("AutoSummitYagatawLoop") == true)
-			applyLoopUI(loop)
-			loopToggle.MouseEnter:Connect(function()
-				if loop then return end
-				tween(loopToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.1})
-			end)
-			loopToggle.MouseLeave:Connect(function()
-				if loop then
-					tween(loopToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.05})
-				else
-					tween(loopToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.2})
-				end
-			end)
-			loopToggle.Activated:Connect(function()
-				loop = not loop
-				player:SetAttribute("AutoSummitYagatawLoop", loop)
-				applyLoopUI(loop)
-			end)
-			local autoToggle = New("TextButton", {
-				Name = "AutoSummitToggle",
-				Text = "Auto Summit: OFF",
-				Font = Enum.Font.GothamSemibold,
-				TextSize = 16,
-				TextColor3 = Colors.TextPrimary,
-				AutoButtonColor = false,
-				BackgroundColor3 = Colors.Surface2,
-				BackgroundTransparency = 0.2,
-				Position = UDim2.fromOffset(150, 86),
-				Size = UDim2.fromOffset(160, 34),
-				Parent = section,
-				ZIndex = 20,
-			}, {})
-			addCorner(autoToggle, 10)
-			addStroke(autoToggle, Colors.Stroke, 1, 0.4)
-			local function applyToggleUI(on)
-				tween(autoToggle, TweenInfo.new(0.12), {
-					BackgroundTransparency = on and 0.05 or 0.2,
-					BackgroundColor3 = on and Colors.Accent or Colors.Surface2,
-				})
-				autoToggle.Text = "Auto Summit: " .. (on and "ON" or "OFF")
-			end
-			local on = (player:GetAttribute("AutoSummitYagataw") == true)
-			local function stillOn() return player:GetAttribute("AutoSummitYagataw") == true end
-			local function isLooping() return player:GetAttribute("AutoSummitYagatawLoop") == true end
-			local function safeWait(sec)
-				local t, step = 0, 0.1; sec = sec or 0
-				while t < sec do
-					if not stillOn() then return false end
-					task.wait(step); t = t + step
-				end
-				return stillOn()
-			end
-			local autoRunning = false
-			local function startAuto()
-				if autoRunning then return end
-				autoRunning = true
-				task.spawn(function()
-					local function resolveCpBase(idx)
-						local checkpoints = workspace:FindFirstChild("Checkpoints")
-						if not checkpoints then return nil end
-						local node = checkpoints:FindFirstChild(tostring(idx))
-						if not node then return nil end
-						if node:IsA("BasePart") then return node end
-						if node:IsA("Model") then return node.PrimaryPart or node:FindFirstChildWhichIsA("BasePart") end
-						return nil
-					end
-					local nearest = 0
-					do
-						local char = player.Character or player.CharacterAdded:Wait()
-						local hrp = char and char:FindFirstChild("HumanoidRootPart")
-						if hrp then
-							local bestDist = math.huge
-							for i = 0, maxCheckpoint do
-								local base = resolveCpBase(i)
-								if base then
-									local d = (base.Position - hrp.Position).Magnitude
-									if d < bestDist then bestDist, nearest = d, i end
-								end
-							end
-						end
-					end
-					do
-						local char = player.Character or player.CharacterAdded:Wait()
-						local hrp = char and char:FindFirstChild("HumanoidRootPart")
-						local baseN = resolveCpBase(nearest)
-						if (not hrp) or (not baseN) then
-							nearest = 0
-						else
-							local d = (baseN.Position - hrp.Position).Magnitude
-							if d > 60 then nearest = 0 end
-						end
-					end
-					if nearest >= maxCheckpoint then
-						nearest = 0
-					end
-					for i = nearest + 1, maxCheckpoint do
-						if not stillOn() then break end
-						teleportTo(areaName, i)
-						do
-							local char = player.Character or player.CharacterAdded:Wait()
-							local hum = char and char:FindFirstChildOfClass("Humanoid")
-							local hrp = char and char:FindFirstChild("HumanoidRootPart")
-							local base = resolveCpBase(i)
-							if hum and hrp and base then
-								local ahead = base.CFrame * CFrame.new(0, 0, 3)
-								hum:MoveTo(ahead.Position)
-							end
-						end
-						if i < maxCheckpoint then
-							if not safeWait(5) then break end
-						else
-							task.wait(0.3)
-							local char = player.Character
-							local hum = char and char:FindFirstChildOfClass("Humanoid")
-							if hum then hum.Health = 0 end
-						end
-					end
-					autoRunning = false
-					if stillOn() then
-						if isLooping() then
-							startAuto()
-						else
-							player:SetAttribute("AutoSummitYagataw", false)
-							on = false
-							applyToggleUI(false)
-						end
-					end
-				end)
-			end
-			applyToggleUI(on)
-			if on then startAuto() end
-			autoToggle.MouseEnter:Connect(function()
-				if on then return end
-				tween(autoToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.1})
-			end)
-			autoToggle.MouseLeave:Connect(function()
-				if on then
-					tween(autoToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.05})
-				else
-					tween(autoToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.2})
-				end
-			end)
-			autoToggle.Activated:Connect(function()
-				on = not on
-				player:SetAttribute("AutoSummitYagataw", on)
-				applyToggleUI(on)
-				if on then startAuto() end
-			end)
-		end
-		
-		if areaName == "MountTalamau" then
 			local autoToggle = New("TextButton", {
 				Name = "AutoSummitTalamauToggle",
 				Text = "Auto Summit: OFF",
@@ -1769,7 +1639,7 @@ do
 						if not stillOn() then break end
 						player.CharacterAdded:Wait()
 						if not stillOn() then break end
-						task.wait(0.1)
+						if not safeWait(math.random(5,8)) then break end
 					end
 					autoRunning = false
 					if not stillOn() then
@@ -1797,6 +1667,10 @@ do
 				if on then startAuto() end
 			end)
 		end
+
+
+
+
 
 
 local selectedCP = 1
@@ -2038,7 +1912,8 @@ local selectedCP = 1
 	createTeleportSection("Mount Yagataw Teleport", "MountYagataw", 8)
 
 	createTeleportSection("Mount Horeg Teleport", "MountHoreg", 5)
-	createTeleportSection("Mount Talamau Teleport", "MountTalamau", 1) end
+	createTeleportSection("Mount Talamau Teleport", "MountTalamau", 1)
+	end
 
 -- Other pages
 do
