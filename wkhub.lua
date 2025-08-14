@@ -1633,6 +1633,8 @@ do
 				task.spawn(function()
 					while stillOn() do
 						teleportTo(areaName, 1)
+					if not stillOn() then break end
+					if not safeWait(7) then break end
 						local char = player.Character or player.CharacterAdded:Wait()
 						local hum = char and char:FindFirstChildOfClass("Humanoid")
 						if hum then hum.Health = 0 end
