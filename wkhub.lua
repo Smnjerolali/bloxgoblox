@@ -466,7 +466,14 @@ local function findTeleportCFrame(area, cpIndex): CFrame?
 	if cfgArea and cfgArea[cpIndex] then
 		return cfgArea[cpIndex]
 	end
-	-- 1b) Special-case: MountYagataw uses numeric children: workspace.Checkpoints["<index>"]
+		-- 1a) Special-case: MountTalamau cp1 named "Summit" at workspace.SummitTrigger
+	if area == "MountTalamau" and cpIndex == 1 then
+		local node = workspace:FindFirstChild("SummitTrigger")
+		local cf = getInstanceCFrame(node)
+		if cf then return cf end
+	end
+
+-- 1b) Special-case: MountYagataw uses numeric children: workspace.Checkpoints["<index>"]
 	if area == "MountYagataw" then
 		local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
 		if checkpointsFolder then
@@ -509,23 +516,23 @@ local function findTeleportCFrame(area, cpIndex): CFrame?
 			if cf then return cf end
 		end
 	end
-	    -- 1d) Special-case: MountHoreg cp1..4 under workspace.CheckpointsFolder.CP<index>
-    if area == "MountHoreg" and cpIndex >= 1 and cpIndex <= 4 then
-        local folder = workspace:FindFirstChild("CheckpointsFolder")
-        if folder then
-            local nameVariants = {
-                "CP"..tostring(cpIndex),
-                "Cp"..tostring(cpIndex),
-                "cp"..tostring(cpIndex),
-            }
-            for _, nm in ipairs(nameVariants) do
-                local node = folder:FindFirstChild(nm)
-                local cf = getInstanceCFrame(node)
-                if cf then return cf end
-            end
-        end
-    end
--- 2) Workspace.Checkpoints.Checkpoint<index> (primary), then numeric child as fallback
+	-- 1d) Special-case: MountHoreg cp1..4 under workspace.CheckpointsFolder.CP<index>
+	if area == "MountHoreg" and cpIndex >= 1 and cpIndex <= 4 then
+		local folder = workspace:FindFirstChild("CheckpointsFolder")
+		if folder then
+			local nameVariants = {
+				"CP"..tostring(cpIndex),
+				"Cp"..tostring(cpIndex),
+				"cp"..tostring(cpIndex),
+			}
+			for _, nm in ipairs(nameVariants) do
+				local node = folder:FindFirstChild(nm)
+				local cf = getInstanceCFrame(node)
+				if cf then return cf end
+			end
+		end
+	end
+	-- 2) Workspace.Checkpoints.Checkpoint<index> (primary), then numeric child as fallback
 	local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
 	if checkpointsFolder then
 		local node1 = checkpointsFolder:FindFirstChild("Checkpoint"..tostring(cpIndex))
@@ -609,16 +616,16 @@ local pageServer = createPage("Server")
 
 -- Main page scroll content
 local pageMainContent = New("ScrollingFrame", {
-  Name = "MainContent",
-  Active = true,
-  BackgroundTransparency = 1,
-  BorderSizePixel = 0,
-  ClipsDescendants = true,
-  ScrollingDirection = Enum.ScrollingDirection.Y,
-  CanvasSize = UDim2.new(0, 0, 0, 0),
-  AutomaticCanvasSize = Enum.AutomaticSize.Y,
-  Position = UDim2.fromOffset(4, 34), -- below header (24) + ~10 padding
-  Size = UDim2.new(1, -8, 1, -38),
+	Name = "MainContent",
+	Active = true,
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ClipsDescendants = true,
+	ScrollingDirection = Enum.ScrollingDirection.Y,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	Position = UDim2.fromOffset(4, 34), -- below header (24) + ~10 padding
+	Size = UDim2.new(1, -8, 1, -38),
 }, {})
 pageMainContent.Parent = pageMain
 local mainList = Instance.new("UIListLayout")
@@ -745,719 +752,719 @@ end
 
 
 -- Main page
- do
-     local header = New("TextLabel", {
-         Text = "Main",
-         Font = Enum.Font.GothamBold,
-         TextSize = 20,
-         TextColor3 = Colors.TextPrimary,
-         BackgroundTransparency = 1,
-         Size = UDim2.new(1, -8, 0, 24),
-     }, {})
-     header.Parent = pageMain
+do
+	local header = New("TextLabel", {
+		Text = "Main",
+		Font = Enum.Font.GothamBold,
+		TextSize = 20,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -8, 0, 24),
+	}, {})
+	header.Parent = pageMain
 
-     -- God Mode (self-contained UI + logic)
-     local God = {
-         enabled = false,
-         conns = {},
-         ffName = "HuntUI_GodModeFF",
-         hb = nil,
-         lastSafeCF = nil,
-     }
+	-- God Mode (self-contained UI + logic)
+	local God = {
+		enabled = false,
+		conns = {},
+		ffName = "HuntUI_GodModeFF",
+		hb = nil,
+		lastSafeCF = nil,
+	}
 
-     local function disconnectAll()
-         for _, c in ipairs(God.conns) do pcall(function() c:Disconnect() end) end
-         God.conns = {}
-     end
-     local function ensureFF(char)
-         if not char then return end
-         local ff = char:FindFirstChild(God.ffName)
-         if not ff then ff = Instance.new("ForceField"); ff.Name = God.ffName; ff.Visible = false; ff.Parent = char end
-     end
-     local function protectHumanoid(hum)
-         if not hum then return end
-         ensureFF(hum.Parent)
-         table.insert(God.conns, hum.HealthChanged:Connect(function()
-             if not God.enabled then return end
-             if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
-         end))
-         table.insert(God.conns, hum.StateChanged:Connect(function(_, new)
-             if not God.enabled then return end
-             if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll then
-                 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-             end
-         end))
-     end
-     
-     local function stopHB()
-         if God.hb then pcall(function() God.hb:Disconnect() end); God.hb = nil end
-     end
+	local function disconnectAll()
+		for _, c in ipairs(God.conns) do pcall(function() c:Disconnect() end) end
+		God.conns = {}
+	end
+	local function ensureFF(char)
+		if not char then return end
+		local ff = char:FindFirstChild(God.ffName)
+		if not ff then ff = Instance.new("ForceField"); ff.Name = God.ffName; ff.Visible = false; ff.Parent = char end
+	end
+	local function protectHumanoid(hum)
+		if not hum then return end
+		ensureFF(hum.Parent)
+		table.insert(God.conns, hum.HealthChanged:Connect(function()
+			if not God.enabled then return end
+			if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+		end))
+		table.insert(God.conns, hum.StateChanged:Connect(function(_, new)
+			if not God.enabled then return end
+			if new == Enum.HumanoidStateType.FallingDown or new == Enum.HumanoidStateType.Ragdoll then
+				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
+		end))
+	end
 
-     local function startHB()
-         stopHB()
-         God.hb = RunService.Heartbeat:Connect(function()
-             if not God.enabled then return end
-             local plr = Players.LocalPlayer
-             local char = plr and plr.Character
-             if not char then return end
-             local hum = char:FindFirstChildOfClass("Humanoid")
-             local hrp = char:FindFirstChild("HumanoidRootPart")
-             if not hum or not hrp then return end
-             -- keep topped up and out of bad states
-             if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
-             local st = hum:GetState()
-             if st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll then
-                 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-             end
-             -- track safe position when standing
-             local threshold = (workspace.FallenPartsDestroyHeight ~= 0 and workspace.FallenPartsDestroyHeight) or -500
-             if hum.FloorMaterial ~= Enum.Material.Air and hrp.Position.Y > threshold + 50 then
-                 God.lastSafeCF = hrp.CFrame
-             end
-             -- anti-void: teleport back to last safe
-             if hrp.Position.Y < threshold + 10 then
-                 local target = God.lastSafeCF or CFrame.new(hrp.Position.X, math.max(threshold + 60, 10), hrp.Position.Z)
-                 hrp.CFrame = target + Vector3.new(0, 5, 0)
-             end
-         end)
-     end
+	local function stopHB()
+		if God.hb then pcall(function() God.hb:Disconnect() end); God.hb = nil end
+	end
 
-local function onCharacter(char)
-         if not God.enabled then return end
-         local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
-         if hum then
-             hum.Health = hum.MaxHealth
-             pcall(function() hum.BreakJointsOnDeath = false end)
-             pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end)
-             pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
-             protectHumanoid(hum)
-             table.insert(God.conns, hum.Died:Connect(function()
-                 if not God.enabled then return end
-                 task.defer(function()
-                     local plr = Players.LocalPlayer
-                     if plr then pcall(function() plr:LoadCharacter() end) end
-                 end)
-             end))
-         end
+	local function startHB()
+		stopHB()
+		God.hb = RunService.Heartbeat:Connect(function()
+			if not God.enabled then return end
+			local plr = Players.LocalPlayer
+			local char = plr and plr.Character
+			if not char then return end
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			if not hum or not hrp then return end
+			-- keep topped up and out of bad states
+			if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+			local st = hum:GetState()
+			if st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll then
+				hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+			end
+			-- track safe position when standing
+			local threshold = (workspace.FallenPartsDestroyHeight ~= 0 and workspace.FallenPartsDestroyHeight) or -500
+			if hum.FloorMaterial ~= Enum.Material.Air and hrp.Position.Y > threshold + 50 then
+				God.lastSafeCF = hrp.CFrame
+			end
+			-- anti-void: teleport back to last safe
+			if hrp.Position.Y < threshold + 10 then
+				local target = God.lastSafeCF or CFrame.new(hrp.Position.X, math.max(threshold + 60, 10), hrp.Position.Z)
+				hrp.CFrame = target + Vector3.new(0, 5, 0)
+			end
+		end)
+	end
 
-     end
-     local function setGod(on)
-         God.enabled = on
-         Players.LocalPlayer:SetAttribute("GodMode", on)
-         disconnectAll()
-         local char = Players.LocalPlayer.Character
-         if on then
-             startHB()
-             if char then onCharacter(char) end
-             table.insert(God.conns, Players.LocalPlayer.CharacterAdded:Connect(onCharacter))
-         else
-             stopHB()
-             if char then local ff = char:FindFirstChild(God.ffName); if ff then ff:Destroy() end end
+	local function onCharacter(char)
+		if not God.enabled then return end
+		local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 10)
+		if hum then
+			hum.Health = hum.MaxHealth
+			pcall(function() hum.BreakJointsOnDeath = false end)
+			pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false) end)
+			pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
+			protectHumanoid(hum)
+			table.insert(God.conns, hum.Died:Connect(function()
+				if not God.enabled then return end
+				task.defer(function()
+					local plr = Players.LocalPlayer
+					if plr then pcall(function() plr:LoadCharacter() end) end
+				end)
+			end))
+		end
 
-         end
-     end
+	end
+	local function setGod(on)
+		God.enabled = on
+		Players.LocalPlayer:SetAttribute("GodMode", on)
+		disconnectAll()
+		local char = Players.LocalPlayer.Character
+		if on then
+			startHB()
+			if char then onCharacter(char) end
+			table.insert(God.conns, Players.LocalPlayer.CharacterAdded:Connect(onCharacter))
+		else
+			stopHB()
+			if char then local ff = char:FindFirstChild(God.ffName); if ff then ff:Destroy() end end
 
-     -- Build card manually
-     local card = New("Frame", {
-         Name = "GodModeCardMain",
-         BackgroundColor3 = Colors.Surface,
-         BackgroundTransparency = 0.15,
-         Size = UDim2.new(1, -8, 0, 74),
-     }, {})
-     addCorner(card, 12)
-     addStroke(card, Colors.Stroke, 1, 0.4)
-     addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-     card.Parent = pageMainContent
+		end
+	end
 
-     local t = New("TextLabel", {
-         Text = "God Mode",
-         Font = Enum.Font.GothamSemibold,
-         TextSize = 18,
-         TextColor3 = Colors.TextPrimary,
-         BackgroundTransparency = 1,
-         Position = UDim2.fromOffset(14, 10),
-         Size = UDim2.new(1, -120, 0, 22),
-     }, {})
-     t.Parent = card
+	-- Build card manually
+	local card = New("Frame", {
+		Name = "GodModeCardMain",
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.new(1, -8, 0, 74),
+	}, {})
+	addCorner(card, 12)
+	addStroke(card, Colors.Stroke, 1, 0.4)
+	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	card.Parent = pageMainContent
 
-     local sub = New("TextLabel", {
-         Text = "Cegah damage (jatuh dan lainnya).",
-         Font = Enum.Font.Gotham,
-         TextSize = 14,
-         TextColor3 = Colors.Accent,
-         BackgroundTransparency = 1,
-         Position = UDim2.fromOffset(14, 36),
-         Size = UDim2.new(1, -120, 0, 18),
-     }, {})
-     sub.Parent = card
+	local t = New("TextLabel", {
+		Text = "God Mode",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 18,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.new(1, -120, 0, 22),
+	}, {})
+	t.Parent = card
 
-     local sw = New("TextButton", {
-         Name = "Switch",
-         Text = "",
-         AutoButtonColor = false,
-         BackgroundColor3 = Colors.SwitchOff,
-         Size = UDim2.fromOffset(58, 28),
-     }, {})
-     addCorner(sw, 14)
-     addStroke(sw, Colors.Stroke, 1, 0.6)
-     sw.AnchorPoint = Vector2.new(1, 0.5)
-     sw.Position = UDim2.new(1, -14, 0.5, 0)
-     sw.Parent = card
+	local sub = New("TextLabel", {
+		Text = "Cegah damage (jatuh dan lainnya).",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.Accent,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 36),
+		Size = UDim2.new(1, -120, 0, 18),
+	}, {})
+	sub.Parent = card
 
-     local knob = New("Frame", {
-         Name = "Knob",
-         BackgroundColor3 = Color3.fromRGB(255,255,255),
-         Size = UDim2.fromOffset(24, 24),
-         Position = UDim2.new(0, 2, 0.5, -12),
-         AnchorPoint = Vector2.new(0,0),
-     }, { })
-     addCorner(knob, 12)
-     knob.Parent = sw
+	local sw = New("TextButton", {
+		Name = "Switch",
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.SwitchOff,
+		Size = UDim2.fromOffset(58, 28),
+	}, {})
+	addCorner(sw, 14)
+	addStroke(sw, Colors.Stroke, 1, 0.6)
+	sw.AnchorPoint = Vector2.new(1, 0.5)
+	sw.Position = UDim2.new(1, -14, 0.5, 0)
+	sw.Parent = card
 
-     local function applySwitch(anim)
-         local on = God.enabled
-         local goalBg = on and Colors.Accent or Colors.SwitchOff
-         local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
-         if anim then
-             tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
-             tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
-         else
-             sw.BackgroundColor3 = goalBg
-             knob.Position = goalPos
-         end
-     end
+	local knob = New("Frame", {
+		Name = "Knob",
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(0, 2, 0.5, -12),
+		AnchorPoint = Vector2.new(0,0),
+	}, { })
+	addCorner(knob, 12)
+	knob.Parent = sw
 
-     sw.Activated:Connect(function()
-         setGod(not God.enabled)
-         applySwitch(true)
-     end)
+	local function applySwitch(anim)
+		local on = God.enabled
+		local goalBg = on and Colors.Accent or Colors.SwitchOff
+		local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+		if anim then
+			tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
+			tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
+		else
+			sw.BackgroundColor3 = goalBg
+			knob.Position = goalPos
+		end
+	end
 
-     -- init from attribute
-     if Players.LocalPlayer:GetAttribute("GodMode") == true then
-         setGod(true)
-         applySwitch(false)
-     else
-         setGod(false)
-         applySwitch(false)
-     end
- end
+	sw.Activated:Connect(function()
+		setGod(not God.enabled)
+		applySwitch(true)
+	end)
+
+	-- init from attribute
+	if Players.LocalPlayer:GetAttribute("GodMode") == true then
+		setGod(true)
+		applySwitch(false)
+	else
+		setGod(false)
+		applySwitch(false)
+	end
+end
 
 
 -- Speed slider
 do
-  local Speed = { min = 8, max = 100, value = 16, conns = {} }
-  local function clamp(v,a,b) if v < a then return a elseif v > b then return b else return v end end
+	local Speed = { min = 8, max = 100, value = 16, conns = {} }
+	local function clamp(v,a,b) if v < a then return a elseif v > b then return b else return v end end
 
-  -- Card UI
-  local card = New("Frame", {
-    Name = "SpeedCard",
-    BackgroundColor3 = Colors.Surface,
-    BackgroundTransparency = 0.15,
-    Size = UDim2.new(1, -8, 0, 90),
-  }, {})
-  addCorner(card, 12)
-  addStroke(card, Colors.Stroke, 1, 0.4)
-  addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-  card.Parent = pageMainContent
+	-- Card UI
+	local card = New("Frame", {
+		Name = "SpeedCard",
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.new(1, -8, 0, 90),
+	}, {})
+	addCorner(card, 12)
+	addStroke(card, Colors.Stroke, 1, 0.4)
+	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	card.Parent = pageMainContent
 
-  local title = New("TextLabel", {
-    Text = "Speed",
-    Font = Enum.Font.GothamSemibold,
-    TextSize = 18,
-    TextColor3 = Colors.TextPrimary,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(14, 10),
-    Size = UDim2.new(1, -120, 0, 22),
-  }, {})
-  title.Parent = card
+	local title = New("TextLabel", {
+		Text = "Speed",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 18,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.new(1, -120, 0, 22),
+	}, {})
+	title.Parent = card
 
-  local subtitle = New("TextLabel", {
-    Text = "Atur kecepatan gerak pemain.",
-    Font = Enum.Font.Gotham,
-    TextSize = 14,
-    TextColor3 = Colors.Accent,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(14, 32),
-    Size = UDim2.new(1, -120, 0, 18),
-  }, {})
-  subtitle.Parent = card
+	local subtitle = New("TextLabel", {
+		Text = "Atur kecepatan gerak pemain.",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.Accent,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 32),
+		Size = UDim2.new(1, -120, 0, 18),
+	}, {})
+	subtitle.Parent = card
 
-  local valueText = New("TextLabel", {
-    Text = "16",
-    Font = Enum.Font.GothamSemibold,
-    TextSize = 16,
-    TextColor3 = Colors.TextPrimary,
-    BackgroundTransparency = 1,
-    AnchorPoint = Vector2.new(1,0),
-    Position = UDim2.new(1, -14, 0, 10),
-    Size = UDim2.fromOffset(60, 18),
-    TextXAlignment = Enum.TextXAlignment.Right,
-  }, {})
-  valueText.Parent = card
+	local valueText = New("TextLabel", {
+		Text = "16",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 16,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		AnchorPoint = Vector2.new(1,0),
+		Position = UDim2.new(1, -14, 0, 10),
+		Size = UDim2.fromOffset(60, 18),
+		TextXAlignment = Enum.TextXAlignment.Right,
+	}, {})
+	valueText.Parent = card
 
-  local bar = New("Frame", {
-    BackgroundColor3 = Color3.fromRGB(60,48,78),
-    BackgroundTransparency = 0.1,
-    Position = UDim2.fromOffset(14, 60),
-    Size = UDim2.new(1, -28, 0, 8),
-  }, {})
-  addCorner(bar, 4)
-  bar.Parent = card
+	local bar = New("Frame", {
+		BackgroundColor3 = Color3.fromRGB(60,48,78),
+		BackgroundTransparency = 0.1,
+		Position = UDim2.fromOffset(14, 60),
+		Size = UDim2.new(1, -28, 0, 8),
+	}, {})
+	addCorner(bar, 4)
+	bar.Parent = card
 
-  local fill = New("Frame", {
-    BackgroundColor3 = Colors.Accent,
-    Size = UDim2.new(0, 0, 1, 0),
-  }, {})
-  addCorner(fill, 4)
-  fill.Parent = bar
+	local fill = New("Frame", {
+		BackgroundColor3 = Colors.Accent,
+		Size = UDim2.new(0, 0, 1, 0),
+	}, {})
+	addCorner(fill, 4)
+	fill.Parent = bar
 
-  local knob = New("Frame", {
-    BackgroundColor3 = Color3.fromRGB(255,255,255),
-    Size = UDim2.fromOffset(14, 14),
-    AnchorPoint = Vector2.new(0.5,0.5),
-    Position = UDim2.fromOffset(0, 4),
-  }, {})
-  addCorner(knob, 7)
-  addStroke(knob, Colors.Stroke, 1, 0.5)
-  knob.Parent = bar
+	local knob = New("Frame", {
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		Size = UDim2.fromOffset(14, 14),
+		AnchorPoint = Vector2.new(0.5,0.5),
+		Position = UDim2.fromOffset(0, 4),
+	}, {})
+	addCorner(knob, 7)
+	addStroke(knob, Colors.Stroke, 1, 0.5)
+	knob.Parent = bar
 
-  local function setUIByValue(v)
-    local ratio = (v - Speed.min) / (Speed.max - Speed.min)
-    ratio = clamp(ratio, 0, 1)
-    fill.Size = UDim2.new(ratio, 0, 1, 0)
-    knob.Position = UDim2.new(ratio, 0, 0.5, 0)
-    valueText.Text = tostring(v)
-  end
+	local function setUIByValue(v)
+		local ratio = (v - Speed.min) / (Speed.max - Speed.min)
+		ratio = clamp(ratio, 0, 1)
+		fill.Size = UDim2.new(ratio, 0, 1, 0)
+		knob.Position = UDim2.new(ratio, 0, 0.5, 0)
+		valueText.Text = tostring(v)
+	end
 
-  local function applySpeed(v)
-    Speed.value = clamp(v, Speed.min, Speed.max)
-    setUIByValue(Speed.value)
-    Players.LocalPlayer:SetAttribute("WalkSpeed", Speed.value)
-    local char = Players.LocalPlayer.Character
-    if char then
-      local hum = char:FindFirstChildOfClass("Humanoid")
-      if hum then
-        hum.WalkSpeed = Speed.value
-      end
-    end
-  end
+	local function applySpeed(v)
+		Speed.value = clamp(v, Speed.min, Speed.max)
+		setUIByValue(Speed.value)
+		Players.LocalPlayer:SetAttribute("WalkSpeed", Speed.value)
+		local char = Players.LocalPlayer.Character
+		if char then
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum.WalkSpeed = Speed.value
+			end
+		end
+	end
 
-  -- keep speed on character spawn and if changed
-  table.insert(Speed.conns, Players.LocalPlayer.CharacterAdded:Connect(function(char)
-    local hum = char:WaitForChild("Humanoid", 10)
-    if hum then
-      hum.WalkSpeed = Speed.value
-      local c
-      c = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-        if math.abs(hum.WalkSpeed - Speed.value) > 0.1 then
-          hum.WalkSpeed = Speed.value
-        end
-      end)
-      table.insert(Speed.conns, c)
-    end
-  end))
+	-- keep speed on character spawn and if changed
+	table.insert(Speed.conns, Players.LocalPlayer.CharacterAdded:Connect(function(char)
+		local hum = char:WaitForChild("Humanoid", 10)
+		if hum then
+			hum.WalkSpeed = Speed.value
+			local c
+			c = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if math.abs(hum.WalkSpeed - Speed.value) > 0.1 then
+					hum.WalkSpeed = Speed.value
+				end
+			end)
+			table.insert(Speed.conns, c)
+		end
+	end))
 
-  -- init from attribute or current humanoid
-  do
-    local attr = Players.LocalPlayer:GetAttribute("WalkSpeed")
-    if typeof(attr) == "number" then
-      Speed.value = clamp(attr, Speed.min, Speed.max)
-    else
-      local hum = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-      local base = (hum and hum.WalkSpeed) or 16
-      Speed.value = clamp(base, Speed.min, Speed.max)
-    end
-    applySpeed(Speed.value)
-  end
+	-- init from attribute or current humanoid
+	do
+		local attr = Players.LocalPlayer:GetAttribute("WalkSpeed")
+		if typeof(attr) == "number" then
+			Speed.value = clamp(attr, Speed.min, Speed.max)
+		else
+			local hum = Players.LocalPlayer.Character and Players.LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+			local base = (hum and hum.WalkSpeed) or 16
+			Speed.value = clamp(base, Speed.min, Speed.max)
+		end
+		applySpeed(Speed.value)
+	end
 
-  -- input handling
-  do
-    local dragging = false
-    local function updateFromX(x)
-      local absPos = bar.AbsolutePosition.X
-      local width = bar.AbsoluteSize.X
-      local ratio = 0
-      if width > 0 then ratio = (x - absPos) / width end
-      ratio = clamp(ratio, 0, 1)
-      local v = math.floor(Speed.min + ratio * (Speed.max - Speed.min) + 0.5)
-      applySpeed(v)
-    end
-    bar.InputBegan:Connect(function(input)
-      if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-        updateFromX(input.Position.X)
-      end
-    end)
-    knob.InputBegan:Connect(function(input)
-      if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = true
-      end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-      if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-        updateFromX(input.Position.X)
-      end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-      if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        dragging = false
-      end
-    end)
-  end
+	-- input handling
+	do
+		local dragging = false
+		local function updateFromX(x)
+			local absPos = bar.AbsolutePosition.X
+			local width = bar.AbsoluteSize.X
+			local ratio = 0
+			if width > 0 then ratio = (x - absPos) / width end
+			ratio = clamp(ratio, 0, 1)
+			local v = math.floor(Speed.min + ratio * (Speed.max - Speed.min) + 0.5)
+			applySpeed(v)
+		end
+		bar.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = true
+				updateFromX(input.Position.X)
+			end
+		end)
+		knob.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = true
+			end
+		end)
+		UserInputService.InputChanged:Connect(function(input)
+			if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+				updateFromX(input.Position.X)
+			end
+		end)
+		UserInputService.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 then
+				dragging = false
+			end
+		end)
+	end
 end
 
 -- Fly toggle
 do
-  local Fly = { enabled = false, conns = {}, bv = nil, states = {W=false,A=false,S=false,D=false,Up=false,Down=false,Shift=false} }
+	local Fly = { enabled = false, conns = {}, bv = nil, states = {W=false,A=false,S=false,D=false,Up=false,Down=false,Shift=false} }
 
-  local function getHRP()
-    local char = Players.LocalPlayer.Character
-    if not char then return nil end
-    return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
-  end
+	local function getHRP()
+		local char = Players.LocalPlayer.Character
+		if not char then return nil end
+		return char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+	end
 
-  local function cleanupBV()
-    if Fly.bv then Fly.bv:Destroy(); Fly.bv = nil end
-  end
+	local function cleanupBV()
+		if Fly.bv then Fly.bv:Destroy(); Fly.bv = nil end
+	end
 
-  local function disconnectAll()
-    for _,c in ipairs(Fly.conns) do pcall(function() c:Disconnect() end) end
-    Fly.conns = {}
-  end
+	local function disconnectAll()
+		for _,c in ipairs(Fly.conns) do pcall(function() c:Disconnect() end) end
+		Fly.conns = {}
+	end
 
-  local function ensureBV()
-    local hrp = getHRP()
-    if not hrp then return end
-    if not Fly.bv or Fly.bv.Parent ~= hrp then
-      cleanupBV()
-      local bv = Instance.new("BodyVelocity")
-      bv.Name = "FlyBV"
-      bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-      bv.P = 10000
-      bv.Velocity = Vector3.new()
-      bv.Parent = hrp
-      Fly.bv = bv
-    end
-  end
+	local function ensureBV()
+		local hrp = getHRP()
+		if not hrp then return end
+		if not Fly.bv or Fly.bv.Parent ~= hrp then
+			cleanupBV()
+			local bv = Instance.new("BodyVelocity")
+			bv.Name = "FlyBV"
+			bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+			bv.P = 10000
+			bv.Velocity = Vector3.new()
+			bv.Parent = hrp
+			Fly.bv = bv
+		end
+	end
 
-  local function getSpeed()
-    local s = Players.LocalPlayer:GetAttribute("WalkSpeed")
-    if typeof(s) ~= "number" then s = 16 end
-    if Fly.states.Shift then s = s * 2 end
-    return s
-  end
+	local function getSpeed()
+		local s = Players.LocalPlayer:GetAttribute("WalkSpeed")
+		if typeof(s) ~= "number" then s = 16 end
+		if Fly.states.Shift then s = s * 2 end
+		return s
+	end
 
-  local function updateVelocity()
-    if not Fly.enabled then return end
-    ensureBV()
-    local hrp = getHRP()
-    local bv = Fly.bv
-    if not hrp or not bv then return end
+	local function updateVelocity()
+		if not Fly.enabled then return end
+		ensureBV()
+		local hrp = getHRP()
+		local bv = Fly.bv
+		if not hrp or not bv then return end
 
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    local look = cam.CFrame.LookVector
-    local right = cam.CFrame.RightVector
-    local up = Vector3.new(0,1,0)
-    local forward = Vector3.new(look.X, 0, look.Z)
-    local side = Vector3.new(right.X, 0, right.Z)
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local look = cam.CFrame.LookVector
+		local right = cam.CFrame.RightVector
+		local up = Vector3.new(0,1,0)
+		local forward = Vector3.new(look.X, 0, look.Z)
+		local side = Vector3.new(right.X, 0, right.Z)
 
-    local dir = Vector3.new()
-    if Fly.states.W then dir += forward end
-    if Fly.states.S then dir -= forward end
-    if Fly.states.D then dir += side end
-    if Fly.states.A then dir -= side end
-    if Fly.states.Up then dir += up end
-    if Fly.states.Down then dir -= up end
-    if dir.Magnitude > 0 then dir = dir.Unit end
+		local dir = Vector3.new()
+		if Fly.states.W then dir += forward end
+		if Fly.states.S then dir -= forward end
+		if Fly.states.D then dir += side end
+		if Fly.states.A then dir -= side end
+		if Fly.states.Up then dir += up end
+		if Fly.states.Down then dir -= up end
+		if dir.Magnitude > 0 then dir = dir.Unit end
 
-    local speed = getSpeed()
-    bv.Velocity = dir * speed
-  end
+		local speed = getSpeed()
+		bv.Velocity = dir * speed
+	end
 
-  local function bindInput()
-    local UIS = UserInputService
-    local function set(k, v)
-      Fly.states[k] = v
-      updateVelocity()
-    end
-    table.insert(Fly.conns, UIS.InputBegan:Connect(function(input, gpe)
-      if gpe then return end
-      local key = input.KeyCode
-      if key == Enum.KeyCode.W then set("W", true)
-      elseif key == Enum.KeyCode.S then set("S", true)
-      elseif key == Enum.KeyCode.A then set("A", true)
-      elseif key == Enum.KeyCode.D then set("D", true)
-      elseif key == Enum.KeyCode.Space then set("Up", true)
-      elseif key == Enum.KeyCode.LeftControl then set("Down", true)
-      elseif key == Enum.KeyCode.LeftShift then set("Shift", true)
-      end
-    end))
-    table.insert(Fly.conns, UIS.InputEnded:Connect(function(input)
-      local key = input.KeyCode
-      if key == Enum.KeyCode.W then set("W", false)
-      elseif key == Enum.KeyCode.S then set("S", false)
-      elseif key == Enum.KeyCode.A then set("A", false)
-      elseif key == Enum.KeyCode.D then set("D", false)
-      elseif key == Enum.KeyCode.Space then set("Up", false)
-      elseif key == Enum.KeyCode.LeftControl then set("Down", false)
-      elseif key == Enum.KeyCode.LeftShift then set("Shift", false)
-      end
-    end))
-    table.insert(Fly.conns, RunService.Heartbeat:Connect(function()
-      updateVelocity()
-    end))
-  end
+	local function bindInput()
+		local UIS = UserInputService
+		local function set(k, v)
+			Fly.states[k] = v
+			updateVelocity()
+		end
+		table.insert(Fly.conns, UIS.InputBegan:Connect(function(input, gpe)
+			if gpe then return end
+			local key = input.KeyCode
+			if key == Enum.KeyCode.W then set("W", true)
+			elseif key == Enum.KeyCode.S then set("S", true)
+			elseif key == Enum.KeyCode.A then set("A", true)
+			elseif key == Enum.KeyCode.D then set("D", true)
+			elseif key == Enum.KeyCode.Space then set("Up", true)
+			elseif key == Enum.KeyCode.LeftControl then set("Down", true)
+			elseif key == Enum.KeyCode.LeftShift then set("Shift", true)
+			end
+		end))
+		table.insert(Fly.conns, UIS.InputEnded:Connect(function(input)
+			local key = input.KeyCode
+			if key == Enum.KeyCode.W then set("W", false)
+			elseif key == Enum.KeyCode.S then set("S", false)
+			elseif key == Enum.KeyCode.A then set("A", false)
+			elseif key == Enum.KeyCode.D then set("D", false)
+			elseif key == Enum.KeyCode.Space then set("Up", false)
+			elseif key == Enum.KeyCode.LeftControl then set("Down", false)
+			elseif key == Enum.KeyCode.LeftShift then set("Shift", false)
+			end
+		end))
+		table.insert(Fly.conns, RunService.Heartbeat:Connect(function()
+			updateVelocity()
+		end))
+	end
 
-  local function setFly(flag)
-    if Fly.enabled == flag then return end
-    Fly.enabled = flag
-    Players.LocalPlayer:SetAttribute("Fly", flag)
-    if flag then
-      bindInput()
-      ensureBV()
-    else
-      disconnectAll()
-      cleanupBV()
-      local hrp = getHRP()
-      if hrp then hrp.AssemblyLinearVelocity = Vector3.new() end
-    end
-  end
+	local function setFly(flag)
+		if Fly.enabled == flag then return end
+		Fly.enabled = flag
+		Players.LocalPlayer:SetAttribute("Fly", flag)
+		if flag then
+			bindInput()
+			ensureBV()
+		else
+			disconnectAll()
+			cleanupBV()
+			local hrp = getHRP()
+			if hrp then hrp.AssemblyLinearVelocity = Vector3.new() end
+		end
+	end
 
-  -- UI card
-  local card = New("Frame", {
-    Name = "FlyCard",
-    BackgroundColor3 = Colors.Surface,
-    BackgroundTransparency = 0.15,
-    Size = UDim2.new(1, -8, 0, 74),
-  }, {})
-  addCorner(card, 12)
-  addStroke(card, Colors.Stroke, 1, 0.4)
-  addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-  card.Parent = pageMainContent
+	-- UI card
+	local card = New("Frame", {
+		Name = "FlyCard",
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.new(1, -8, 0, 74),
+	}, {})
+	addCorner(card, 12)
+	addStroke(card, Colors.Stroke, 1, 0.4)
+	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	card.Parent = pageMainContent
 
-  local t = New("TextLabel", {
-    Text = "Fly",
-    Font = Enum.Font.GothamSemibold,
-    TextSize = 18,
-    TextColor3 = Colors.TextPrimary,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(14, 10),
-    Size = UDim2.new(1, -120, 0, 22),
-  }, {})
-  t.Parent = card
+	local t = New("TextLabel", {
+		Text = "Fly",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 18,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.new(1, -120, 0, 22),
+	}, {})
+	t.Parent = card
 
-  local sub = New("TextLabel", {
-    Text = "Terbang bebas: WASD, Space naik, Ctrl turun, Shift boost",
-    Font = Enum.Font.Gotham,
-    TextSize = 14,
-    TextColor3 = Colors.Accent,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(14, 36),
-    Size = UDim2.new(1, -120, 0, 18),
-  }, {})
-  sub.Parent = card
+	local sub = New("TextLabel", {
+		Text = "Terbang bebas: WASD, Space naik, Ctrl turun, Shift boost",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.Accent,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 36),
+		Size = UDim2.new(1, -120, 0, 18),
+	}, {})
+	sub.Parent = card
 
-  local sw = New("TextButton", {
-    Name = "Switch",
-    Text = "",
-    AutoButtonColor = false,
-    BackgroundColor3 = Colors.SwitchOff,
-    Size = UDim2.fromOffset(58, 28),
-  }, {})
-  addCorner(sw, 14)
-  addStroke(sw, Colors.Stroke, 1, 0.6)
-  sw.AnchorPoint = Vector2.new(1, 0.5)
-  sw.Position = UDim2.new(1, -14, 0.5, 0)
-  sw.Parent = card
+	local sw = New("TextButton", {
+		Name = "Switch",
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.SwitchOff,
+		Size = UDim2.fromOffset(58, 28),
+	}, {})
+	addCorner(sw, 14)
+	addStroke(sw, Colors.Stroke, 1, 0.6)
+	sw.AnchorPoint = Vector2.new(1, 0.5)
+	sw.Position = UDim2.new(1, -14, 0.5, 0)
+	sw.Parent = card
 
-  local knob = New("Frame", {
-    Name = "Knob",
-    BackgroundColor3 = Color3.fromRGB(255,255,255),
-    Size = UDim2.fromOffset(24, 24),
-    Position = UDim2.new(0, 2, 0.5, -12),
-    AnchorPoint = Vector2.new(0,0),
-  }, { })
-  addCorner(knob, 12)
-  knob.Parent = sw
+	local knob = New("Frame", {
+		Name = "Knob",
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(0, 2, 0.5, -12),
+		AnchorPoint = Vector2.new(0,0),
+	}, { })
+	addCorner(knob, 12)
+	knob.Parent = sw
 
-  local function applySwitch(anim)
-    local on = Fly.enabled
-    local goalBg = on and Colors.Accent or Colors.SwitchOff
-    local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
-    if anim then
-      tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
-      tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
-    else
-      sw.BackgroundColor3 = goalBg
-      knob.Position = goalPos
-    end
-  end
+	local function applySwitch(anim)
+		local on = Fly.enabled
+		local goalBg = on and Colors.Accent or Colors.SwitchOff
+		local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+		if anim then
+			tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
+			tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
+		else
+			sw.BackgroundColor3 = goalBg
+			knob.Position = goalPos
+		end
+	end
 
-  sw.Activated:Connect(function()
-    setFly(not Fly.enabled)
-    applySwitch(true)
-  end)
+	sw.Activated:Connect(function()
+		setFly(not Fly.enabled)
+		applySwitch(true)
+	end)
 
-  -- init from attribute
-  if Players.LocalPlayer:GetAttribute("Fly") == true then
-    setFly(true)
-    applySwitch(false)
-  else
-    setFly(false)
-    applySwitch(false)
-  end
+	-- init from attribute
+	if Players.LocalPlayer:GetAttribute("Fly") == true then
+		setFly(true)
+		applySwitch(false)
+	else
+		setFly(false)
+		applySwitch(false)
+	end
 
-  -- hotkey toggle (F) and attribute sync
-  table.insert(Fly.conns, UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    if UserInputService:GetFocusedTextBox() then return end
-    if input.KeyCode == Enum.KeyCode.F then
-      setFly(not Fly.enabled)
-      applySwitch(true)
-    end
-  end))
-  table.insert(Fly.conns, Players.LocalPlayer:GetAttributeChangedSignal("Fly"):Connect(function()
-    local v = Players.LocalPlayer:GetAttribute("Fly") == true
-    setFly(v)
-    applySwitch(true)
-  end))
+	-- hotkey toggle (F) and attribute sync
+	table.insert(Fly.conns, UserInputService.InputBegan:Connect(function(input, gpe)
+		if gpe then return end
+		if UserInputService:GetFocusedTextBox() then return end
+		if input.KeyCode == Enum.KeyCode.F then
+			setFly(not Fly.enabled)
+			applySwitch(true)
+		end
+	end))
+	table.insert(Fly.conns, Players.LocalPlayer:GetAttributeChangedSignal("Fly"):Connect(function()
+		local v = Players.LocalPlayer:GetAttribute("Fly") == true
+		setFly(v)
+		applySwitch(true)
+	end))
 
-  -- re-ensure on respawn if still enabled
-  table.insert(Fly.conns, Players.LocalPlayer.CharacterAdded:Connect(function()
-    if Fly.enabled then task.defer(function() ensureBV() end) end
-  end))
+	-- re-ensure on respawn if still enabled
+	table.insert(Fly.conns, Players.LocalPlayer.CharacterAdded:Connect(function()
+		if Fly.enabled then task.defer(function() ensureBV() end) end
+	end))
 end
 
 -- NoClip toggle
- do
-  local NoClip = { enabled = false, conns = {}, prev = {} }
+do
+	local NoClip = { enabled = false, conns = {}, prev = {} }
 
-  local function getChar()
-    return Players.LocalPlayer.Character
-  end
+	local function getChar()
+		return Players.LocalPlayer.Character
+	end
 
-  local function disconnectAll()
-    for _,c in ipairs(NoClip.conns) do pcall(function() c:Disconnect() end) end
-    NoClip.conns = {}
-  end
+	local function disconnectAll()
+		for _,c in ipairs(NoClip.conns) do pcall(function() c:Disconnect() end) end
+		NoClip.conns = {}
+	end
 
-  local function setNoClip(flag)
-    if NoClip.enabled == flag then return end
-    NoClip.enabled = flag
-    Players.LocalPlayer:SetAttribute("NoClip", flag)
-    disconnectAll()
-    if flag then
-      local function step()
-        local char = getChar()
-        if not char then return end
-        for _,desc in ipairs(char:GetDescendants()) do
-          if desc:IsA("BasePart") then
-            if desc.CanCollide and NoClip.prev[desc] == nil then
-              NoClip.prev[desc] = true
-            end
-            desc.CanCollide = false
-          end
-        end
-      end
-      table.insert(NoClip.conns, RunService.Stepped:Connect(step))
-      table.insert(NoClip.conns, Players.LocalPlayer.CharacterAdded:Connect(function()
-        task.defer(function() if NoClip.enabled then step() end end)
-      end))
-    else
-      for part,_ in pairs(NoClip.prev) do
-        if typeof(part) == "Instance" and part.Parent then
-          pcall(function() part.CanCollide = true end)
-        end
-      end
-      NoClip.prev = {}
-    end
-  end
+	local function setNoClip(flag)
+		if NoClip.enabled == flag then return end
+		NoClip.enabled = flag
+		Players.LocalPlayer:SetAttribute("NoClip", flag)
+		disconnectAll()
+		if flag then
+			local function step()
+				local char = getChar()
+				if not char then return end
+				for _,desc in ipairs(char:GetDescendants()) do
+					if desc:IsA("BasePart") then
+						if desc.CanCollide and NoClip.prev[desc] == nil then
+							NoClip.prev[desc] = true
+						end
+						desc.CanCollide = false
+					end
+				end
+			end
+			table.insert(NoClip.conns, RunService.Stepped:Connect(step))
+			table.insert(NoClip.conns, Players.LocalPlayer.CharacterAdded:Connect(function()
+				task.defer(function() if NoClip.enabled then step() end end)
+			end))
+		else
+			for part,_ in pairs(NoClip.prev) do
+				if typeof(part) == "Instance" and part.Parent then
+					pcall(function() part.CanCollide = true end)
+				end
+			end
+			NoClip.prev = {}
+		end
+	end
 
-  -- UI card
-  local card = New("Frame", {
-    Name = "NoClipCard",
-    BackgroundColor3 = Colors.Surface,
-    BackgroundTransparency = 0.15,
-    Size = UDim2.new(1, -8, 0, 74),
-  }, {})
-  addCorner(card, 12)
-  addStroke(card, Colors.Stroke, 1, 0.4)
-  addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-  card.Parent = pageMainContent
+	-- UI card
+	local card = New("Frame", {
+		Name = "NoClipCard",
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.new(1, -8, 0, 74),
+	}, {})
+	addCorner(card, 12)
+	addStroke(card, Colors.Stroke, 1, 0.4)
+	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	card.Parent = pageMainContent
 
-  local t = New("TextLabel", {
-    Text = "NoClip",
-    Font = Enum.Font.GothamSemibold,
-    TextSize = 18,
-    TextColor3 = Colors.TextPrimary,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(14, 10),
-    Size = UDim2.new(1, -120, 0, 22),
-  }, {})
-  t.Parent = card
+	local t = New("TextLabel", {
+		Text = "NoClip",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 18,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.new(1, -120, 0, 22),
+	}, {})
+	t.Parent = card
 
-  local sub = New("TextLabel", {
-    Text = "Tembus objek (hindari menabrak).",
-    Font = Enum.Font.Gotham,
-    TextSize = 14,
-    TextColor3 = Colors.Accent,
-    BackgroundTransparency = 1,
-    Position = UDim2.fromOffset(14, 36),
-    Size = UDim2.new(1, -120, 0, 18),
-  }, {})
-  sub.Parent = card
+	local sub = New("TextLabel", {
+		Text = "Tembus objek (hindari menabrak).",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.Accent,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 36),
+		Size = UDim2.new(1, -120, 0, 18),
+	}, {})
+	sub.Parent = card
 
-  local sw = New("TextButton", {
-    Name = "Switch",
-    Text = "",
-    AutoButtonColor = false,
-    BackgroundColor3 = Colors.SwitchOff,
-    Size = UDim2.fromOffset(58, 28),
-  }, {})
-  addCorner(sw, 14)
-  addStroke(sw, Colors.Stroke, 1, 0.6)
-  sw.AnchorPoint = Vector2.new(1, 0.5)
-  sw.Position = UDim2.new(1, -14, 0.5, 0)
-  sw.Parent = card
+	local sw = New("TextButton", {
+		Name = "Switch",
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.SwitchOff,
+		Size = UDim2.fromOffset(58, 28),
+	}, {})
+	addCorner(sw, 14)
+	addStroke(sw, Colors.Stroke, 1, 0.6)
+	sw.AnchorPoint = Vector2.new(1, 0.5)
+	sw.Position = UDim2.new(1, -14, 0.5, 0)
+	sw.Parent = card
 
-  local knob = New("Frame", {
-    Name = "Knob",
-    BackgroundColor3 = Color3.fromRGB(255,255,255),
-    Size = UDim2.fromOffset(24, 24),
-    Position = UDim2.new(0, 2, 0.5, -12),
-    AnchorPoint = Vector2.new(0,0),
-  }, { })
-  addCorner(knob, 12)
-  knob.Parent = sw
+	local knob = New("Frame", {
+		Name = "Knob",
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(0, 2, 0.5, -12),
+		AnchorPoint = Vector2.new(0,0),
+	}, { })
+	addCorner(knob, 12)
+	knob.Parent = sw
 
-  local function applySwitch(anim)
-    local on = NoClip.enabled
-    local goalBg = on and Colors.Accent or Colors.SwitchOff
-    local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
-    if anim then
-      tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
-      tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
-    else
-      sw.BackgroundColor3 = goalBg
-      knob.Position = goalPos
-    end
-  end
+	local function applySwitch(anim)
+		local on = NoClip.enabled
+		local goalBg = on and Colors.Accent or Colors.SwitchOff
+		local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+		if anim then
+			tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
+			tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
+		else
+			sw.BackgroundColor3 = goalBg
+			knob.Position = goalPos
+		end
+	end
 
-  sw.Activated:Connect(function()
-    setNoClip(not NoClip.enabled)
-    applySwitch(true)
-  end)
+	sw.Activated:Connect(function()
+		setNoClip(not NoClip.enabled)
+		applySwitch(true)
+	end)
 
-  -- init from attribute
-  if Players.LocalPlayer:GetAttribute("NoClip") == true then
-    setNoClip(true)
-    applySwitch(false)
-  else
-    setNoClip(false)
-    applySwitch(false)
-  end
- end
+	-- init from attribute
+	if Players.LocalPlayer:GetAttribute("NoClip") == true then
+		setNoClip(true)
+		applySwitch(false)
+	else
+		setNoClip(false)
+		applySwitch(false)
+	end
+end
 
 -- Teleport page
 do
@@ -1526,6 +1533,11 @@ do
 		for i = 1, math.max(1, maxCheckpoint) do
 			cpOptions[i] = "Checkpoints "..i
 		end
+		-- cpOptionsOverrideTalamau
+		if areaName == "MountTalamau" then
+			cpOptions = {"Summit"}
+		end
+
 
 		if areaName == "MountHoreg" and maxCheckpoint >= 5 then
 			cpOptions[5] = "Puncak"
@@ -1706,7 +1718,88 @@ do
 				if on then startAuto() end
 			end)
 		end
-		local selectedCP = 1
+		
+		if areaName == "MountTalamau" then
+			local autoToggle = New("TextButton", {
+				Name = "AutoSummitTalamauToggle",
+				Text = "Auto Summit: OFF",
+				Font = Enum.Font.GothamSemibold,
+				TextSize = 16,
+				TextColor3 = Colors.TextPrimary,
+				AutoButtonColor = false,
+				BackgroundColor3 = Colors.Surface2,
+				BackgroundTransparency = 0.2,
+				Position = UDim2.fromOffset(150, 86),
+				Size = UDim2.fromOffset(160, 34),
+				Parent = section,
+				ZIndex = 20,
+			}, {})
+			addCorner(autoToggle, 10)
+			addStroke(autoToggle, Colors.Stroke, 1, 0.4)
+			local function applyToggleUI(on)
+				tween(autoToggle, TweenInfo.new(0.12), {
+					BackgroundTransparency = on and 0.05 or 0.2,
+					BackgroundColor3 = on and Colors.Accent or Colors.Surface2,
+				})
+				autoToggle.Text = "Auto Summit: " .. (on and "ON" or "OFF")
+			end
+			if player:GetAttribute("AutoSummitTalamau") == nil then
+				player:SetAttribute("AutoSummitTalamau", false)
+			end
+			local on = (player:GetAttribute("AutoSummitTalamau") == true)
+			local function stillOn() return player:GetAttribute("AutoSummitTalamau") == true end
+			local function safeWait(sec)
+				local t, step = 0, 0.1; sec = sec or 0
+				while t < sec do
+					if not stillOn() then return false end
+					task.wait(step); t = t + step
+				end
+				return stillOn()
+			end
+			local autoRunning = false
+			local function startAuto()
+				if autoRunning then return end
+				autoRunning = true
+				task.spawn(function()
+					while stillOn() do
+						teleportTo(areaName, 1)
+						local char = player.Character or player.CharacterAdded:Wait()
+						local hum = char and char:FindFirstChildOfClass("Humanoid")
+						if hum then hum.Health = 0 end
+						if not stillOn() then break end
+						player.CharacterAdded:Wait()
+						if not stillOn() then break end
+						task.wait(0.1)
+					end
+					autoRunning = false
+					if not stillOn() then
+						applyToggleUI(false)
+					end
+				end)
+			end
+			applyToggleUI(on)
+			if on then startAuto() end
+			autoToggle.MouseEnter:Connect(function()
+				if on then return end
+				tween(autoToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.1})
+			end)
+			autoToggle.MouseLeave:Connect(function()
+				if on then
+					tween(autoToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.05})
+				else
+					tween(autoToggle, TweenInfo.new(0.12), {BackgroundTransparency = 0.2})
+				end
+			end)
+			autoToggle.Activated:Connect(function()
+				on = not on
+				player:SetAttribute("AutoSummitTalamau", on)
+				applyToggleUI(on)
+				if on then startAuto() end
+			end)
+		end
+
+
+local selectedCP = 1
 
 		local ddContainer = New("Frame", {
 			BackgroundTransparency = 1,
@@ -1944,7 +2037,8 @@ do
 	createTeleportSection("Mount Sibuatan Teleport", "MountSibuatan", 46)
 	createTeleportSection("Mount Yagataw Teleport", "MountYagataw", 8)
 
-	createTeleportSection("Mount Horeg Teleport", "MountHoreg", 5) end
+	createTeleportSection("Mount Horeg Teleport", "MountHoreg", 5)
+	createTeleportSection("Mount Talamau Teleport", "MountTalamau", 1) end
 
 -- Other pages
 do
@@ -2181,10 +2275,10 @@ end)
 
 -- Failsafe: force show on startup
 pcall(function()
-    task.defer(function()
-        if gui then gui.Enabled = true end
-        if typeof(setMinimized) == "function" then setMinimized(false) end
-        if typeof(showPage) == "function" and pageHunt then showPage(pageHunt)
-print('[WKHub] Boot: showPage(pageHunt) called') end
-    end)
+	task.defer(function()
+		if gui then gui.Enabled = true end
+		if typeof(setMinimized) == "function" then setMinimized(false) end
+		if typeof(showPage) == "function" and pageHunt then showPage(pageHunt)
+			print('[WKHub] Boot: showPage(pageHunt) called') end
+	end)
 end)
