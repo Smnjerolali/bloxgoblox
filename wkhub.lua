@@ -1626,13 +1626,108 @@ do
 				end
 				return stillOn()
 			end
-			local autoRunning = false
+									local function ensureSummitContact(strong)
+	local char = player.Character or player.CharacterAdded:Wait()
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	if not hum or not hrp then return false end
+	-- Find summit node/part
+	local node = workspace:FindFirstChild("SummitTrigger")
+	if not node then
+		local checkpoints = workspace:FindFirstChild("Checkpoints")
+		if checkpoints then
+			node = checkpoints:FindFirstChild("Summit") or checkpoints:FindFirstChild("Puncak") or checkpoints:FindFirstChild("1")
+		end
+	end
+	local basePart, baseCF, hx, hz
+	local function pickBase(model)
+		if model.PrimaryPart then return model.PrimaryPart end
+		local p = model:FindFirstChildWhichIsA("BasePart")
+		return p
+	end
+	if node then
+		if node:IsA("BasePart") then
+			basePart = node
+			baseCF = node.CFrame
+			hx = node.Size.X/2
+			hz = node.Size.Z/2
+		elseif node:IsA("Model") then
+			basePart = pickBase(node)
+			local ext = node:GetExtentsSize()
+			baseCF = (basePart and basePart.CFrame) or node:GetPivot()
+			hx = ext.X/2
+			hz = ext.Z/2
+		end
+	end
+	if not baseCF then
+		local cf = Config and Config.Teleports and Config.Teleports.MountTalamau and Config.Teleports.MountTalamau[1]
+		baseCF = typeof(cf) == "CFrame" and cf or (hrp.CFrame)
+		hx, hz = 4, 4
+	end
+	-- Margins and passes
+	local margin = strong and 10 or 6
+	hx = (hx or 4) + margin
+	hz = (hz or 4) + margin
+	-- Setup touched detection if we have a base part
+	local touched = false
+	local conns = {}
+	local function setupTouched(p)
+		if p and p:IsA("BasePart") then
+			local c = p.Touched:Connect(function(other)
+				if other and other:IsDescendantOf(char) then touched = true end
+			end)
+			table.insert(conns, c)
+		end
+	end
+	setupTouched(basePart)
+	-- Move helper
+	local function moveToLocal(dx, dy, dz, hold)
+		if player:GetAttribute("AutoSummitTalamau") ~= true then return end
+		local targetCF = baseCF * CFrame.new(dx, dy, dz)
+		hum:MoveTo(targetCF.Position)
+		local finished = false
+		local c; c = hum.MoveToFinished:Connect(function() finished = true end)
+		local t, timeout = 0, 1.6
+		while t < timeout and not finished do
+			if player:GetAttribute("AutoSummitTalamau") ~= true then break end
+			task.wait(0.05); t += 0.05
+		end
+		if c then c:Disconnect() end
+		if hold and player:GetAttribute("AutoSummitTalamau") == true then task.wait(hold) end
+	end
+	-- Start slightly above to ensure physical contact, then do multiple passes
+	hrP = hrp
+	hrP.CFrame = baseCF * CFrame.new(0, 1.6, -(hz))
+	moveToLocal(0, 1.2, hz, 0.2)
+	if strong then moveToLocal(0, 1.2, -hz, 0.1) end
+	moveToLocal(-hx, 1.2, 0, 0.15)
+	moveToLocal(hx, 1.2, 0, 0.15)
+	if strong then
+		moveToLocal(-hx, 1.2, -hz, 0.1)
+		moveToLocal(hx, 1.2, hz, 0.1)
+	end
+	-- Center drop with jump + downward velocity
+	if player:GetAttribute("AutoSummitTalamau") == true then
+		hrP.CFrame = baseCF * CFrame.new(0, 1.3, 0)
+		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+		task.wait(0.08)
+		hrP.Velocity = Vector3.new(0, -40, 0)
+		task.wait(strong and 0.6 or 0.4)
+	end
+	for _,c in ipairs(conns) do pcall(function() c:Disconnect() end) end
+	return touched
+end
+
+
+local autoRunning = false
 			local function startAuto()
 				if autoRunning then return end
 				autoRunning = true
 				task.spawn(function()
 					while stillOn() do
 						teleportTo(areaName, 1)
+					local ok = ensureSummitContact(false)
+					if not ok then ok = ensureSummitContact(true) end
 					-- Nudge and walk across Summit trigger to ensure Touched fires
 					do
 						local char = player.Character or player.CharacterAdded:Wait()
