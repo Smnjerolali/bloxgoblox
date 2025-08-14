@@ -1633,6 +1633,34 @@ do
 				task.spawn(function()
 					while stillOn() do
 						teleportTo(areaName, 1)
+					-- Nudge and walk across Summit trigger to ensure Touched fires
+					do
+						local char = player.Character or player.CharacterAdded:Wait()
+						local hum = char and char:FindFirstChildOfClass("Humanoid")
+						local hrp = char and char:FindFirstChild("HumanoidRootPart")
+						if hum and hrp then
+							local base
+							local node = workspace:FindFirstChild("SummitTrigger")
+							if not node then
+								local checkpoints = workspace:FindFirstChild("Checkpoints")
+								if checkpoints then
+									node = checkpoints:FindFirstChild("Summit") or checkpoints:FindFirstChild("Puncak") or checkpoints:FindFirstChild("1")
+								end
+							end
+							if node then
+								if node:IsA("BasePart") then base = node end
+								if node:IsA("Model") then base = node.PrimaryPart or node:FindFirstChildWhichIsA("BasePart") end
+							end
+							if base then
+								local start = base.CFrame * CFrame.new(0, 0, 4)
+								hrp.CFrame = start
+								hum:MoveTo(base.Position)
+							else
+								-- Fallback: walk a few studs forward
+								hum:MoveTo(hrp.Position + hrp.CFrame.LookVector * 4)
+							end
+						end
+					end
 					if not stillOn() then break end
 					if not safeWait(7) then break end
 						local char = player.Character or player.CharacterAdded:Wait()
@@ -1669,6 +1697,7 @@ do
 				if on then startAuto() end
 			end)
 		end
+
 
 
 
