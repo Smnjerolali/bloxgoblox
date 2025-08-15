@@ -1017,6 +1017,350 @@ do
 end
 
 
+
+-- Salto Gak Jelas (random flips for trolling)
+do
+	local Salto = { enabled = false, loopId = 0, holdCount = 0, mode = "Insane", walk = false }
+
+	local function holdAllowFly(duration)
+		Salto.holdCount = (Salto.holdCount or 0) + 1
+		game:GetService("Players").LocalPlayer:SetAttribute("AllowFly", true)
+		task.delay(duration or 1.2, function()
+			Salto.holdCount = Salto.holdCount - 1
+			if Salto.holdCount <= 0 then
+				Salto.holdCount = 0
+				game:GetService("Players").LocalPlayer:SetAttribute("AllowFly", false)
+			end
+		end)
+	end
+
+	local function performFlip(kind)
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local plr = Players.LocalPlayer
+		local char = plr.Character
+		if not char then return end
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		if not hum or not hrp then return end
+
+		-- whitelist anti-cheat while flipping
+		holdAllowFly(1.2)
+
+		-- Determine local axis
+		local axisLocal
+		if kind == "spin" then
+			axisLocal = Vector3.new(0, 1, 0)
+		elseif kind == "front" then
+			axisLocal = Vector3.new(1, 0, 0)
+		elseif kind == "back" then
+			axisLocal = Vector3.new(-1, 0, 0)
+		elseif kind == "left" then
+			axisLocal = Vector3.new(0, 0, 1)
+		elseif kind == "right" then
+			axisLocal = Vector3.new(0, 0, -1)
+		else
+			local choices = {Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,1,0), Vector3.new(0,0,1), Vector3.new(0,0,-1)}
+			axisLocal = choices[math.random(1,#choices)]
+		end
+
+		-- Prepare flip parameters
+		local duration = 0.7
+		local totalAngle = math.rad(math.random(360, 720)) -- 1 to 2 spins
+		local angular = totalAngle / duration
+
+		-- Slight hop for visibility
+		pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
+		hrPVel = hrp.AssemblyLinearVelocity
+		hrp.AssemblyLinearVelocity = hrPVel + Vector3.new(0, 12, 0)
+
+		-- Temporarily let us control orientation
+		local prevAuto = hum.AutoRotate
+		local prevPlat = hum.PlatformStand
+		pcall(function()
+			hum.AutoRotate = false
+			hum.PlatformStand = true
+		end)
+
+		local elapsed = 0
+		local conn
+		conn = RunService.RenderStepped:Connect(function(dt)
+			if not hrp or not hrp.Parent then conn:Disconnect() return end
+			elapsed += dt
+			local step = angular * dt
+			-- rotate about HRP local axis
+			hrp.CFrame = hrp.CFrame * CFrame.fromAxisAngle(axisLocal, step)
+			if elapsed >= duration then
+				conn:Disconnect()
+				pcall(function()
+					hrp.AssemblyAngularVelocity = Vector3.zero
+					hum.PlatformStand = prevPlat
+					hum.AutoRotate = prevAuto
+				end)
+			end
+		end)
+	end
+local function startLoop()
+		Salto.loopId = Salto.loopId + 1
+		local myId = Salto.loopId
+		local Players = game:GetService("Players")
+		local RunService = game:GetService("RunService")
+		local plr = Players.LocalPlayer
+
+		local function getCharStuff()
+			local char = plr.Character
+			if not char then return nil, nil end
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			local hrp = char:FindFirstChild("HumanoidRootPart")
+			return hum, hrp
+		end
+
+		task.spawn(function()
+			local hum, hrp = getCharStuff()
+			if not hum or not hrp then
+				local char = plr.Character or plr.CharacterAdded:Wait()
+				hum = char:WaitForChild("Humanoid", 10)
+				hrp = char:WaitForChild("HumanoidRootPart", 10)
+			end
+			if not hum or not hrp then return end
+
+			-- lock orientation control + whitelist anticheat
+			local prevAuto, prevPlat = hum.AutoRotate, hum.PlatformStand
+			pcall(function()
+				hum.AutoRotate = false
+				hum.PlatformStand = not (Salto.walk == true)
+			end)
+			plr:SetAttribute("AllowFly", true)
+
+			local axisOptions = {Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,1,0), Vector3.new(0,0,1), Vector3.new(0,0,-1)}
+			local function pickRanges()
+				local m = tostring(Salto.mode or "Insane")
+				if m == "Normal" then
+					return 200, 360, 12, 20 -- rad/s, axis 0.12–0.20s
+				elseif m == "Turbo" then
+					return 500, 720, 8, 16 -- rad/s, axis 0.08–0.16s
+				elseif m == "Insane" then
+					return 800, 1200, 6, 12 -- rad/s, axis 0.06–0.12s
+				else -- Insane++
+					return 1500, 2400, 3, 6 -- rad/s, axis 0.03–0.06s
+				end
+			end
+			local minS, maxS, minA, maxA = pickRanges()
+			local axis = axisOptions[math.random(1,#axisOptions)]
+			local speed = math.random(minS, maxS)
+			local tAxis, tAxisMax = 0, (math.random(minA, maxA)/100)
+
+			local conn; conn = RunService.RenderStepped:Connect(function(dt)
+				if not Salto.enabled or Salto.loopId ~= myId then
+					conn:Disconnect()
+					pcall(function()
+						hum.PlatformStand = prevPlat
+						hum.AutoRotate = prevAuto
+					end)
+					plr:SetAttribute("AllowFly", false)
+					return
+				end
+
+				-- reacquire if necessary
+				if not hrp or not hrp.Parent then
+					local h2, r2 = getCharStuff()
+					hum, hrp = h2, r2
+					if not hum or not hrp then return end
+				end
+
+				-- continuous spin with current mode
+				hrp.CFrame = hrp.CFrame * CFrame.fromAxisAngle(axis, speed * dt)
+
+				-- quick re-randomization
+				tAxis += dt
+				if tAxis >= tAxisMax then
+					tAxis = 0
+					minS, maxS, minA, maxA = pickRanges() -- in case mode changed on the fly
+					axis = axisOptions[math.random(1,#axisOptions)]
+					speed = math.random(minS, maxS)
+					tAxisMax = (math.random(minA, maxA)/100)
+				end
+			end)
+		end)
+	end
+local function setEnabled(on)
+		Salto.enabled = on
+		game:GetService("Players").LocalPlayer:SetAttribute("SaltoGakJelas", on)
+		if on then
+			startLoop()
+		else
+			Salto.loopId = Salto.loopId + 1
+			Salto.holdCount = 0
+			game:GetService("Players").LocalPlayer:SetAttribute("AllowFly", false)
+		end
+	end
+
+	-- Card UI
+	local card = New("Frame", {
+		Name = "SaltoCard",
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Size = UDim2.new(1, -8, 0, 110),
+	}, {})
+	addCorner(card, 12)
+	addStroke(card, Colors.Stroke, 1, 0.4)
+	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	card.Parent = pageMainContent
+
+	local t = New("TextLabel", {
+		Text = "Salto Gak Jelas",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 18,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.new(1, -120, 0, 22),
+	}, {})
+	t.Parent = card
+
+	local sub = New("TextLabel", {
+		Text = "Putar avatar acak buat troll 😜",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.Accent,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 32),
+		Size = UDim2.new(1, -120, 0, 18),
+	}, {})
+	sub.Parent = card
+
+	local sw = New("TextButton", {
+		Name = "Switch",
+		Text = "",
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.SwitchOff,
+		Size = UDim2.fromOffset(58, 28),
+	}, {})
+	addCorner(sw, 14)
+	addStroke(sw, Colors.Stroke, 1, 0.6)
+	sw.AnchorPoint = Vector2.new(1, 0.5)
+	sw.Position = UDim2.new(1, -14, 0.5, 0)
+	sw.Parent = card
+
+	local knob = New("Frame", {
+		Name = "Knob",
+		BackgroundColor3 = Color3.fromRGB(255,255,255),
+		Size = UDim2.fromOffset(24, 24),
+		Position = UDim2.new(0, 2, 0.5, -12),
+		AnchorPoint = Vector2.new(0,0),
+	}, {})
+	addCorner(knob, 12)
+	knob.Parent = sw
+
+	local function applySwitch(anim)
+		local on = Salto.enabled
+		local goalBg = on and Colors.Accent or Colors.SwitchOff
+		local goalPos = on and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
+		if anim then
+			tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
+			tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
+		else
+			sw.BackgroundColor3 = goalBg
+			knob.Position = goalPos
+		end
+	end
+
+	sw.Activated:Connect(function()
+		setEnabled(not Salto.enabled)
+		applySwitch(true)
+	end)
+
+	
+	
+	-- Mode button + Walk toggle
+	local modes = {"Normal","Turbo","Insane","Insane++"}
+	local function restartLoopIfOn()
+		if Salto.enabled then
+			Salto.loopId = Salto.loopId + 1
+			startLoop()
+		end
+	end
+
+	local modeBtn = New("TextButton", {
+		Name = "ModeBtn",
+		Text = "Mode: " .. tostring(Salto.mode or "Insane"),
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 14,
+		TextColor3 = Color3.fromRGB(255,255,255),
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.Accent,
+		Size = UDim2.fromOffset(136, 28),
+		Position = UDim2.fromOffset(14, 60),
+	}, {})
+	addCorner(modeBtn, 8)
+	addStroke(modeBtn, Colors.Stroke, 1, 0.5)
+	modeBtn.Parent = card
+
+	local function setMode(name)
+		Salto.mode = name
+		game:GetService("Players").LocalPlayer:SetAttribute("SaltoMode", name)
+		modeBtn.Text = "Mode: " .. name
+		restartLoopIfOn()
+	end
+	local function nextMode()
+		local cur = tostring(Salto.mode or "Insane")
+		local idx = table.find(modes, cur) or 3
+		idx = idx + 1; if idx > #modes then idx = 1 end
+		setMode(modes[idx])
+	end
+	modeBtn.Activated:Connect(nextMode)
+
+	local walkBtn = New("TextButton", {
+		Name = "WalkBtn",
+		Text = (Salto.walk and "Walk: ON" or "Walk: OFF"),
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 14,
+		TextColor3 = Color3.fromRGB(255,255,255),
+		AutoButtonColor = false,
+		BackgroundColor3 = (Salto.walk and Colors.Accent or Color3.fromRGB(58,58,72)),
+		Size = UDim2.fromOffset(116, 28),
+		Position = UDim2.fromOffset(160, 60),
+	}, {})
+	addCorner(walkBtn, 8)
+	addStroke(walkBtn, Colors.Stroke, 1, 0.5)
+	walkBtn.Parent = card
+
+	local function applyWalkVisual()
+		walkBtn.Text = (Salto.walk and "Walk: ON" or "Walk: OFF")
+		walkBtn.BackgroundColor3 = (Salto.walk and Colors.Accent or Color3.fromRGB(58,58,72))
+	end
+	local function setWalk(on)
+		Salto.walk = on and true or false
+		game:GetService("Players").LocalPlayer:SetAttribute("SaltoWalk", Salto.walk)
+		applyWalkVisual()
+		restartLoopIfOn()
+	end
+	walkBtn.Activated:Connect(function()
+		setWalk(not Salto.walk)
+	end)
+
+	-- init extra settings
+	local _plr = game:GetService("Players").LocalPlayer
+	local savedMode = _plr:GetAttribute("SaltoMode")
+	if typeof(savedMode) == "string" then
+		Salto.mode = savedMode
+		pcall(function() modeBtn.Text = "Mode: " .. savedMode end)
+	end
+	local savedWalk = _plr:GetAttribute("SaltoWalk")
+	if typeof(savedWalk) == "boolean" then
+		Salto.walk = savedWalk
+		pcall(function() walkBtn.Text = (savedWalk and "Walk: ON" or "Walk: OFF"); walkBtn.BackgroundColor3 = (savedWalk and Colors.Accent or Color3.fromRGB(58,58,72)) end)
+	end
+-- init from saved attribute
+	if game:GetService("Players").LocalPlayer:GetAttribute("SaltoGakJelas") == true then
+		setEnabled(true)
+		applySwitch(false)
+	else
+		setEnabled(false)
+		applySwitch(false)
+	end
+end
+
 -- Speed slider
 do
 	local Speed = { min = 8, max = 100, value = 16, conns = {} }
