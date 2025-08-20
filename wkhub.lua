@@ -2461,8 +2461,8 @@ do
 		local target
 		for _,p in ipairs(Players:GetPlayers()) do if p.Name == name then target = p break end end
 		if not target then return end
-		local tchar = target.Character
-		local thrp = tchar and tchar:FindFirstChild("HumanoidRootPart")
+		local tchar = workspace:FindFirstChild(name)
+		local thrp = tchar and (tchar.PrimaryPart or tchar:FindFirstChild("HumanoidRootPart") or tchar:FindFirstChild("Torso"))
 		if not (myHRP and thrp) then return end
 		local offset = CFrame.new(0, 0, 3)
 		myChar:PivotTo(thrp.CFrame * offset)
