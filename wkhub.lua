@@ -10,8 +10,35 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+-- Saved config keys and boot loader
+local SavedConfigKeys = {
+	"GodMode","SaltoGakJelas","SaltoMode","SaltoWalk","WalkSpeed","Fly","NoClip","AutoGhostShark","AutoSharkHunt","AutoWormHunt","AutoSummitTalamau","AutoSummitAtin"
+}
+local function applySavedConfigFromTeleportDataOrAttribute()
+	pcall(function()
+		local td = nil
+		if TeleportService and TeleportService.GetLocalPlayerTeleportData then
+			td = TeleportService:GetLocalPlayerTeleportData()
+		end
+		local blob = nil
+		if type(td) == "table" and type(td.ConfigJSON) == "string" and #td.ConfigJSON > 0 then
+			blob = td.ConfigJSON
+		end
+		if not blob then blob = player:GetAttribute("SavedConfigJSON") end
+		if type(blob) == "string" and #blob > 0 then
+			local ok, cfg = pcall(function() return HttpService:JSONDecode(blob) end)
+			if ok and type(cfg) == "table" then
+				for i=1,#SavedConfigKeys do local k = SavedConfigKeys[i]; local v = cfg[k]; if v ~= nil then player:SetAttribute(k, v) end end
+			end
+		end
+	end)
+end
+applySavedConfigFromTeleportDataOrAttribute()
+
 
 -- Try load theme (optional, safe fallback)
 local Theme = {}
@@ -683,6 +710,7 @@ local pageTeleport = createPage("Teleport")
 local pageMisc = createPage("Misc")
 local pageInfo = createPage("Info")
 local pageServer = createPage("Server")
+local pageConfig = createPage("Config")
 
 -- Main page scroll content
 local pageMainContent = New("ScrollingFrame", {
@@ -2412,6 +2440,13 @@ do
 		if player:GetAttribute("AutoSummitAtin") == nil then
 			player:SetAttribute("AutoSummitAtin", false)
 		end
+		-- Restore toggle state from TeleportData if present
+		pcall(function()
+			if TeleportService and TeleportService.GetLocalPlayerTeleportData then
+				local td = TeleportService:GetLocalPlayerTeleportData()
+				if td and td.AutoSummitAtin == true then player:SetAttribute("AutoSummitAtin", true) end
+			end
+		end)
 		local function stillOn() return player:GetAttribute("AutoSummitAtin") == true end
 		local autoRunning = false
 		local function startAuto()
@@ -2436,7 +2471,20 @@ do
 					local cool = 1.0
 					local t = 0
 					while t < cool and stillOn() do task.wait(0.1); t += 0.1 end
-				end
+					-- after cooldown, rejoin same server with 10s delay
+					if stillOn() then
+						local delaySec = 10
+						local t2 = 0
+						while t2 < delaySec and stillOn() do task.wait(0.1); t2 += 0.1 end
+						if stillOn() then
+							local placeId = game.PlaceId
+							local jobId = game.JobId
+							pcall(function()
+								TeleportService:TeleportToPlaceInstance(placeId, jobId, player, { AutoSummitAtin = true, ConfigJSON = player:GetAttribute("SavedConfigJSON") })
+							end)
+						end
+					end
+end
 				autoRunning = false
 			end)
 		end
@@ -2642,7 +2690,7 @@ do
 	btnSame.Activated:Connect(function()
 		logStatus("Rejoining same server...")
 		local ok, err = pcall(function()
-			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player, { ConfigJSON = player:GetAttribute("SavedConfigJSON") })
 		end)
 		if not ok then logStatus("Rejoin failed: "..tostring(err)) end
 	end)
@@ -2666,7 +2714,7 @@ do
 	btnNew.Activated:Connect(function()
 		logStatus("Rejoining a new server...")
 		local ok, err = pcall(function()
-			TeleportService:Teleport(game.PlaceId, player)
+            TeleportService:Teleport(game.PlaceId, player, { ConfigJSON = player:GetAttribute("SavedConfigJSON") })
 		end)
 		if not ok then logStatus("Rejoin failed: "..tostring(err)) end
 	end)
@@ -2738,12 +2786,101 @@ do
 	end
 end
 
+
+-- Config page
+do
+	local header = New("TextLabel", {
+		Text = "Config",
+		Font = Enum.Font.GothamBold,
+		TextSize = 20,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -8, 0, 24),
+	}, {})
+	header.Parent = pageConfig
+	-- TODO: add config controls here
+end
+
+-- Config - Save
+do
+	local saveCard = New("Frame", {
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Position = UDim2.fromOffset(0, 34),
+		Size = UDim2.new(1, -8, 0, 94),
+	}, {})
+	addCorner(saveCard, 12)
+	addStroke(saveCard, Colors.Stroke, 1, 0.4)
+	addGradient(saveCard, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	saveCard.Parent = pageConfig
+
+	local info = New("TextLabel", {
+		Text = "Simpan pengaturan agar tidak reset saat teleport/rejoin via GUI ini.",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.TextMuted,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(14, 10),
+		Size = UDim2.new(1, -28, 0, 22),
+	}, {})
+	info.Parent = saveCard
+
+	local btnSave = New("TextButton", {
+		Text = "Simpan Config",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 16,
+		TextColor3 = Colors.TextPrimary,
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.Accent,
+		BackgroundTransparency = 0.05,
+		Position = UDim2.fromOffset(14, 48),
+		Size = UDim2.fromOffset(160, 34),
+		Parent = saveCard,
+	}, {})
+	addCorner(btnSave, 10)
+	addStroke(btnSave, Colors.Stroke, 1, 0.4)
+	btnSave.MouseEnter:Connect(function() tween(btnSave, TweenInfo.new(0.12), {BackgroundTransparency = 0}) end)
+	btnSave.MouseLeave:Connect(function() tween(btnSave, TweenInfo.new(0.12), {BackgroundTransparency = 0.05}) end)
+
+	local status = New("TextLabel", {
+		Name = "Status",
+		Text = "",
+		Font = Enum.Font.Gotham,
+		TextSize = 14,
+		TextColor3 = Colors.TextMuted,
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(184, 52),
+		Size = UDim2.new(1, -198, 0, 26),
+		TextXAlignment = Enum.TextXAlignment.Left,
+	}, {})
+	status.Parent = saveCard
+
+	local function getConfigTable()
+		local t = {}
+		for i=1,#SavedConfigKeys do local k = SavedConfigKeys[i]; local v = player:GetAttribute(k); if v ~= nil then t[k] = v end end
+		return t
+	end
+
+	btnSave.Activated:Connect(function()
+		local data = getConfigTable()
+		local ok, json = pcall(function() return HttpService:JSONEncode(data) end)
+		if ok then
+			player:SetAttribute("SavedConfigJSON", json)
+			status.Text = "Tersimpan."
+		else
+			status.Text = "Gagal menyimpan."
+		end
+	end)
+end
+
+
 -- Nav
 local navMain = navButton("Main")
 local navHunt = navButton("Hunt")
 local navTeleport = navButton("Teleport")
 local navMisc = navButton("Misc")
 local navInfo = navButton("Info")
+local navConfig = navButton("Config")
 local navServer = navButton("Server")
 
 local navButtons = {
@@ -2752,6 +2889,7 @@ local navButtons = {
 	{button = navTeleport, page = pageTeleport},
 	{button = navMisc, page = pageMisc},
 	{button = navInfo, page = pageInfo},
+	{button = navConfig, page = pageConfig},
 	{button = navServer, page = pageServer},
 }
 
