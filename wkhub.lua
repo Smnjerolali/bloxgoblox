@@ -168,6 +168,18 @@ local function tween(obj, ti, goal)
 	t:Play()
 	return t
 end
+-- StatusLog (simple logger for Server page)
+local StatusLog = { buffer = {}, onUpdate = nil }
+local function logStatus(msg)
+	msg = tostring(msg)
+	table.insert(StatusLog.buffer, msg)
+	if #StatusLog.buffer > 200 then table.remove(StatusLog.buffer, 1) end
+	local cb = StatusLog.onUpdate
+	if cb then pcall(function()
+		cb(table.concat(StatusLog.buffer, "\n"))
+	end) end
+end
+
 
 -- Root gui
 local gui = New("ScreenGui", {
@@ -418,6 +430,54 @@ local function navButton(labelText)
 	b.Parent = sidebar
 	return b
 end
+-- Pages container and factory
+local pages = New("Frame", {
+	Name = "Pages",
+	BackgroundTransparency = 1,
+	AnchorPoint = Vector2.new(0,1),
+	Position = UDim2.new(0, 166, 1, -8),
+	Size = UDim2.new(1, -174, 1, -62),
+	Parent = window,
+}, {})
+
+local function createPage(name)
+	local page = New("Frame", {
+		Name = name,
+		BackgroundTransparency = 1,
+		Size = UDim2.fromScale(1,1),
+		Visible = false,
+	}, {})
+	page.Parent = pages
+	-- Standard stacked content area (optional per page)
+	local content = New("ScrollingFrame", {
+		Name = name .. "Content",
+		BackgroundTransparency = 1,
+		Position = UDim2.fromOffset(8, 34),
+		Size = UDim2.new(1, -16, 1, -46),
+		ScrollBarThickness = 6,
+		ScrollingDirection = Enum.ScrollingDirection.Y,
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(0,0,0,0),
+	}, {})
+	local list = Instance.new("UIListLayout")
+	list.Padding = UDim.new(0, 8)
+	list.FillDirection = Enum.FillDirection.Vertical
+	list.HorizontalAlignment = Enum.HorizontalAlignment.Left
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = content
+	content.Parent = page
+	return page, content
+end
+
+-- Define all pages
+local pageMain, pageMainContent = createPage("Main")
+local pagePlayer, pagePlayerContent = createPage("Player")
+local pageTeleport = select(1, createPage("Teleport"))
+local pageMisc = select(1, createPage("Misc"))
+local pageInfo = select(1, createPage("Info"))
+local pageConfig = select(1, createPage("Config"))
+local pageServer, pageServerContent = createPage("Server")
+
 
 -- [Removed duplicate early Pages block]
 
@@ -468,446 +528,6 @@ local function createSwitch(initial, onChanged)
 end
 
 -- Toggle card
-local function toggleCard(parent, titleText, subtitleText, defaultOn, onChanged: (boolean)->())
-	local card = New("Frame", {
-		BackgroundColor3 = Colors.Surface,
-		BackgroundTransparency = 0.15,
-		Size = UDim2.new(1, -8, 0, 74),
-	}, {})
-	addCorner(card, 12)
-	addStroke(card, Colors.Stroke, 1, 0.4)
-	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-
-	local t = New("TextLabel", {
-		Text = titleText,
-		Font = Enum.Font.GothamSemibold,
-		TextSize = 18,
-		TextColor3 = Colors.TextPrimary,
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(14, 10),
-		Size = UDim2.new(1, -120, 0, 22),
-	}, {})
-	t.Parent = card
-
-	local sub = New("TextLabel", {
-		Text = subtitleText or "",
-		Font = Enum.Font.Gotham,
-		TextSize = 14,
-		TextColor3 = Colors.Accent,
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(14, 36),
-		Size = UDim2.new(1, -120, 0, 18),
-	}, {})
-	sub.Parent = card
-
-	local sw, setState = createSwitch(defaultOn, onChanged)
-	sw.AnchorPoint = Vector2.new(1, 0.5)
-	sw.Position = UDim2.new(1, -14, 0.5, 0)
-	sw.Parent = card
-
-	card.Parent = parent
-	return setState
-end
-
--- Status logging utility
-local StatusLog = {
-	buffer = {},
-	max = 50,
-	onUpdate = nil,
-}
-local function logStatus(msg)
-	local s = "[WKHub] " .. tostring(msg)
-	table.insert(StatusLog.buffer, 1, tostring(msg))
-	if #StatusLog.buffer > StatusLog.max then table.remove(StatusLog.buffer) end
-	if StatusLog.onUpdate then
-		StatusLog.onUpdate(table.concat(StatusLog.buffer, "\n"))
-	end
-	print(s)
-end
-
--- Utility: get CFrame for a teleport target (area + cpIndex)
-local Config = {
-	Teleports = {
-			MountAtin = {
-				[1] = CFrame.fromMatrix(Vector3.new(780.5750732421875, 2176.611572265625, 3922.7177734375), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0), Vector3.new(0, 0, 1))
-			},
-
-		MountTalamau = {
-			[1] = CFrame.fromMatrix(Vector3.new(-655.8442993164062, 1081.611083984375, 281.3544006347656), Vector3.new(0.649083137512207, 0, -0.7607174515724182), Vector3.new(0, 1, 0), Vector3.new(0.7607174515724182, 0, 0.649083137512207))
-		},
-		-- Optional: hardcode coordinates here if needed
-	}
-}
--- Mount Daun cp5 override (precise CFrame)
-do
-	Config.Teleports = Config.Teleports or {}
-	Config.Teleports.MountDaun = Config.Teleports.MountDaun or {}
-	Config.Teleports.MountDaun[5] = CFrame.fromMatrix(
-		Vector3.new(-3231.3310546875, 1718.792724609375, -2590.8115234375),
-		Vector3.new(0.7366656064987183, -0.02419755980372429, 0.6758242249488831), -- right
-		Vector3.new(-0.031430911272764206, 0.9970545172691345, 0.06995955109596252), -- up
-		Vector3.new(-0.6755264401435852, -0.07277856767177582, 0.733735203742981) -- back = -look
-	)
-end
-
-local function getInstanceCFrame(inst): CFrame?
-	if inst == nil then return nil end
-	if inst:IsA("BasePart") then
-		return inst.CFrame
-	end
-	if inst:IsA("Attachment") then
-		local ok, cf = pcall(function()
-			return (inst :: Attachment).WorldCFrame
-		end)
-		if ok then return cf end
-	end
-	if inst:IsA("Model") then
-		local m = inst :: Model
-		if m.PrimaryPart then return m.PrimaryPart.CFrame end
-		for _, d in ipairs(m:GetDescendants()) do
-			if d:IsA("BasePart") then
-				return (d :: BasePart).CFrame
-			end
-		end
-	end
-	-- Generic container fallback (e.g., Folder)
-	for _, d in ipairs(inst:GetDescendants()) do
-		if d:IsA("BasePart") then
-			return (d :: BasePart).CFrame
-		end
-	end
-	return nil
-end
-
-
-
-local function findTeleportCFrame(area, cpIndex): CFrame?
-	-- 1) Manual config override
-	local cfgArea = Config.Teleports[area]
-	if cfgArea and cfgArea[cpIndex] then
-		return cfgArea[cpIndex]
-	end
-	-- 1a) Special-case: MountTalamau cp1 named "Summit" at workspace.SummitTrigger
-	if area == "MountTalamau" and cpIndex == 1 then
-		local node = workspace:FindFirstChild("SummitTrigger")
-		local cf = getInstanceCFrame(node)
-		if cf then return cf end
-	end
-
-	-- 1b) Special-case: MountYagataw uses numeric children: workspace.Checkpoints["<index>"]
-	-- 1a-extended) Fallbacks for MountTalamau cp1 when SummitTrigger missing
-	if area == "MountTalamau" and cpIndex == 1 then
-		-- AutoFallbackMountTalamau
-		local candidateNames = { "Summit", "Puncak", "Summit Trigger", "Summit_Trigger", "MountTalamauSummit", "TalamauSummit", "SummitTalamau" }
-		for _, nm in ipairs(candidateNames) do
-			local node = workspace:FindFirstChild(nm)
-			local cf = getInstanceCFrame(node)
-			if cf then return cf end
-		end
-		local checkpoints = workspace:FindFirstChild("Checkpoints")
-		if checkpoints then
-			local cands = { "Summit", "Puncak", "Checkpoint1", "1" }
-			for _, nm in ipairs(cands) do
-				local node = checkpoints:FindFirstChild(nm)
-				local cf = getInstanceCFrame(node)
-				if cf then return cf end
-			end
-		end
-		local tpRoot = workspace:FindFirstChild("TeleportPoints")
-		if tpRoot then
-			local areaFolder = tpRoot:FindFirstChild("MountTalamau")
-			if areaFolder then
-				local cands = { "Summit", "Puncak", "CP1", "1" }
-				for _, nm in ipairs(cands) do
-					local node = areaFolder:FindFirstChild(nm)
-					local cf = getInstanceCFrame(node)
-					if cf then return cf end
-				end
-			end
-		end
-		for _, inst in ipairs(workspace:GetDescendants()) do
-			if inst.Name == "SummitTrigger" then
-				local cf = getInstanceCFrame(inst)
-				if cf then return cf end
-			end
-		end
-	end
-	if area == "MountYagataw" then
-		local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
-		if checkpointsFolder then
-			local node = checkpointsFolder:FindFirstChild(tostring(cpIndex))
-			local cf = getInstanceCFrame(node)
-			if cf then return cf end
-		end
-	end
-	-- 1c) Special-case: MountHoreg cp5 named "Puncak"
-	if area == "MountHoreg" and cpIndex == 5 then
-		local folder = workspace:FindFirstChild("CheckpointsFolder")
-		if folder then
-			local node = folder:FindFirstChild("Puncak") or folder:FindFirstChild("puncak")
-			local cf = getInstanceCFrame(node)
-			if cf then return cf end
-		end
-
-		local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
-		if checkpointsFolder then
-			local node = checkpointsFolder:FindFirstChild("Puncak") or checkpointsFolder:FindFirstChild("puncak")
-			local cf = getInstanceCFrame(node)
-			if cf then return cf end
-		end
-		local tpRootMH = workspace:FindFirstChild("TeleportPoints")
-		if tpRootMH then
-			local areaFolderMH = tpRootMH:FindFirstChild(area)
-			if areaFolderMH then
-				local node = areaFolderMH:FindFirstChild("Puncak") or areaFolderMH:FindFirstChild("puncak")
-				local cf = getInstanceCFrame(node)
-				if cf then return cf end
-			end
-		end
-	end
-	-- 1d) Special-case: MountHoreg cp4 under workspace.CheckpointsFolder.CP<index>
-	if area == "MountHoreg" and cpIndex == 4 then
-		local folder = workspace:FindFirstChild("CheckpointsFolder")
-		if folder then
-			local node = folder:FindFirstChild("CP"..tostring(cpIndex))
-			local cf = getInstanceCFrame(node)
-			if cf then return cf end
-		end
-	end
-	-- 1d) Special-case: MountHoreg cp1..4 under workspace.CheckpointsFolder.CP<index>
-	if area == "MountHoreg" and cpIndex >= 1 and cpIndex <= 4 then
-		local folder = workspace:FindFirstChild("CheckpointsFolder")
-		if folder then
-			local nameVariants = {
-				"CP"..tostring(cpIndex),
-				"Cp"..tostring(cpIndex),
-				"cp"..tostring(cpIndex),
-			}
-			for _, nm in ipairs(nameVariants) do
-				local node = folder:FindFirstChild(nm)
-				local cf = getInstanceCFrame(node)
-				if cf then return cf end
-			end
-		end
-	end
-	-- 2) Workspace.Checkpoints.Checkpoint<index> (primary), then numeric child as fallback
-	local checkpointsFolder = workspace:FindFirstChild("Checkpoints")
-	if checkpointsFolder then
-		local node1 = checkpointsFolder:FindFirstChild("Checkpoint"..tostring(cpIndex))
-		local cf1 = getInstanceCFrame(node1)
-		if cf1 then return cf1 end
-		local node2 = checkpointsFolder:FindFirstChild(tostring(cpIndex))
-		local cf2 = getInstanceCFrame(node2)
-		if cf2 then return cf2 end
-	end
-	-- 3) Fallbacks: Workspace/TeleportPoints/<Area>/<CPx>
-	local tpRoot = workspace:FindFirstChild("TeleportPoints")
-	if tpRoot then
-		local areaFolder = tpRoot:FindFirstChild(area)
-		if areaFolder then
-			local nameVariants = {"CP"..cpIndex, "CP "..cpIndex, "CP_"..cpIndex}
-			for _, nm in ipairs(nameVariants) do
-				local node = areaFolder:FindFirstChild(nm)
-				local cf = getInstanceCFrame(node)
-				if cf then return cf end
-			end
-		end
-	end
-	-- 4) Fallbacks: Top-level <Area>_<CPx>
-	local nameVariants = {area.."_CP"..cpIndex, area.."_CP "..cpIndex, area.." CP"..cpIndex}
-	for _, nm in ipairs(nameVariants) do
-		local node = workspace:FindFirstChild(nm)
-		local cf = getInstanceCFrame(node)
-		if cf then return cf end
-	end
-	return nil
-end
-
-local function teleportTo(area, cpIndex)
-	local char = player.Character or player.CharacterAdded:Wait()
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hrp then
-		warn("[WKHub] HumanoidRootPart not found")
-
-		logStatus("Teleport failed: HumanoidRootPart not found")        return
-	end
-	local cf = findTeleportCFrame(area, cpIndex)
-	if not cf then
-		warn(string.format("[WKHub] Teleport target not found: %s Checkpoint %d", area, cpIndex))
-		return
-	end
-	hrp.CFrame = cf + Vector3.new(0, 5, 0)
-	print(string.format("[WKHub] Teleported to %s Checkpoint %d", area, cpIndex))
-end
-
--- Pages and content
-local pages = New("Frame", {
-	Name = "Pages",
-	BackgroundTransparency = 1,
-	Position = UDim2.new(0, 168, 0, 56),
-	Size = UDim2.new(1, -176, 1, -64),
-	Parent = window,
-})
-print('[WKHub] Boot: Pages frame created, Visible='..tostring(pages.Visible))
-
-local function createPage(name)
-	local f = New("Frame", {
-		Name = name,
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1,1),
-		Visible = false,
-	}, {})
-	local list = Instance.new("UIListLayout")
-	list.Padding = UDim.new(0, 10)
-	list.SortOrder = Enum.SortOrder.LayoutOrder
-	list.Parent = f
-	f.Parent = pages
-	return f
-end
-
-local pageMain = createPage("Main")
-local pageHunt = createPage("Hunt")
-local pageTeleport = createPage("Teleport")
-local pageMisc = createPage("Misc")
-local pageInfo = createPage("Info")
-local pageServer = createPage("Server")
-local pageConfig = createPage("Config")
-
--- Main page scroll content
-local pageMainContent = New("ScrollingFrame", {
-	Name = "MainContent",
-	Active = true,
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ClipsDescendants = true,
-	ScrollingDirection = Enum.ScrollingDirection.Y,
-	CanvasSize = UDim2.new(0, 0, 0, 0),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	Position = UDim2.fromOffset(4, 34), -- below header (24) + ~10 padding
-	Size = UDim2.new(1, -8, 1, -38),
-}, {})
-pageMainContent.Parent = pageMain
-local mainList = Instance.new("UIListLayout")
-mainList.Padding = UDim.new(0, 8)
-mainList.FillDirection = Enum.FillDirection.Vertical
-mainList.SortOrder = Enum.SortOrder.LayoutOrder
-mainList.Parent = pageMainContent
-
-local __rmMainList = pageMain:FindFirstChildOfClass("UIListLayout"); if __rmMainList then __rmMainList:Destroy() end
-pageHunt.Visible = true
-
--- Hunt page
-do
-	local header = New("TextLabel", {
-		Text = "Hunt",
-		Font = Enum.Font.GothamBold,
-		TextSize = 20,
-		TextColor3 = Colors.TextPrimary,
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, -8, 0, 24),
-	}, {})
-	header.Parent = pageHunt
-
-	local function onGhostShark(enabled)
-		Players.LocalPlayer:SetAttribute("AutoGhostShark", enabled)
-		print("[Hunt] Ghost Shark:", enabled and "ON" or "OFF")
-	end
-	local function onWorm(enabled)
-		Players.LocalPlayer:SetAttribute("AutoWormHunt", enabled)
-		print("[Hunt] Worm Hunt:", enabled and "ON" or "OFF")
-	end
-	local function onShark(enabled)
-		Players.LocalPlayer:SetAttribute("AutoSharkHunt", enabled)
-		print("[Hunt] Shark Hunt:", enabled and "ON" or "OFF")
-	end
-
-	local function toggleCard(parent, titleText, subtitleText, defaultOn, onChanged: (boolean)->())
-		local card = New("Frame", {
-			BackgroundColor3 = Colors.Surface,
-			BackgroundTransparency = 0.15,
-			Size = UDim2.new(1, -8, 0, 74),
-		}, {})
-		addCorner(card, 12)
-		addStroke(card, Colors.Stroke, 1, 0.4)
-		addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-
-		local t = New("TextLabel", {
-			Text = titleText,
-			Font = Enum.Font.GothamSemibold,
-			TextSize = 18,
-			TextColor3 = Colors.TextPrimary,
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(14, 10),
-			Size = UDim2.new(1, -120, 0, 22),
-		}, {})
-		t.Parent = card
-
-		local sub = New("TextLabel", {
-			Text = subtitleText or "",
-			Font = Enum.Font.Gotham,
-			TextSize = 14,
-			TextColor3 = Colors.Accent,
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(14, 36),
-			Size = UDim2.new(1, -120, 0, 18),
-		}, {})
-		sub.Parent = card
-
-		local sw = New("TextButton", {
-			Name = "Switch",
-			Text = "",
-			AutoButtonColor = false,
-			BackgroundColor3 = defaultOn and Colors.Accent or Colors.SwitchOff,
-			Size = UDim2.fromOffset(58, 28),
-		}, {})
-		addCorner(sw, 14)
-		addStroke(sw, Colors.Stroke, 1, 0.6)
-		local knob = New("Frame", {
-			Name = "Knob",
-			BackgroundColor3 = Color3.fromRGB(255,255,255),
-			Size = UDim2.fromOffset(24, 24),
-			Position = defaultOn and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12),
-			AnchorPoint = Vector2.new(0,0),
-		}, { })
-		addCorner(knob, 12)
-		knob.Parent = sw
-
-		local state = defaultOn
-		local function apply(anim)
-			local goalBg = state and Colors.Accent or Colors.SwitchOff
-			local goalPos = state and UDim2.new(1, -26, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
-			if anim then
-				tween(sw, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = goalBg})
-				tween(knob, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = goalPos})
-			else
-				sw.BackgroundColor3 = goalBg
-				knob.Position = goalPos
-			end
-		end
-
-		sw.Activated:Connect(function()
-			state = not state
-			apply(true)
-			if onChanged then task.spawn(onChanged, state) end
-		end)
-
-		sw.AnchorPoint = Vector2.new(1, 0.5)
-		sw.Position = UDim2.new(1, -14, 0.5, 0)
-		sw.Parent = card
-
-		card.Parent = parent
-	end
-
-	toggleCard(pageHunt, "Ghost Shark Hunt", "Auto Teleport to Ghost Shark area if activated", false, function(enabled)
-		Players.LocalPlayer:SetAttribute("AutoGhostShark", enabled)
-	end)
-	toggleCard(pageHunt, "Worm Hunt", "Auto Teleport to Worm Hunt area if activated", false, function(enabled)
-		Players.LocalPlayer:SetAttribute("AutoWormHunt", enabled)
-	end)
-	toggleCard(pageHunt, "Shark Hunt", "Auto Teleport to Shark Hunt area if activated", false, function(enabled)
-		Players.LocalPlayer:SetAttribute("AutoSharkHunt", enabled)
-	end)
-end
 
 
 -- Main page
@@ -2684,6 +2304,171 @@ end
 	createTeleportSection("Mount Atin Teleport", "MountAtin", 1)
 
 end
+-- Player page
+do
+	local header = New("TextLabel", {
+		Text = "Player",
+		Font = Enum.Font.GothamBold,
+		TextSize = 20,
+		TextColor3 = Colors.TextPrimary,
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, -8, 0, 24),
+	}, {})
+	header.Parent = pagePlayer
+
+	-- Card container
+	local card = New("Frame", {
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		AutomaticSize = Enum.AutomaticSize.Y,
+		Size = UDim2.new(1, -8, 0, 82),
+	}, {})
+	addCorner(card, 12)
+	addStroke(card, Colors.Stroke, 1, 0.4)
+	addGradient(card, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
+	card.Parent = pagePlayerContent
+
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop = UDim.new(0, 12)
+	pad.PaddingLeft = UDim.new(0, 12)
+	pad.PaddingRight = UDim.new(0, 12)
+	pad.PaddingBottom = UDim.new(0, 12)
+	pad.Parent = card
+
+	local selectedName : string? = nil
+	local ddButton = New("TextButton", {
+		Text = "Pilih Player ▾",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 16,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextColor3 = Colors.TextPrimary,
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.Surface2,
+		BackgroundTransparency = 0.2,
+		Position = UDim2.fromOffset(0, 0),
+		Size = UDim2.fromOffset(260, 34),
+	}, {})
+	addCorner(ddButton, 10)
+	addStroke(ddButton, Colors.Stroke, 1, 0.6)
+	ddButton.MouseEnter:Connect(function() tween(ddButton, TweenInfo.new(0.12), {BackgroundTransparency = 0.1}) end)
+	ddButton.MouseLeave:Connect(function() tween(ddButton, TweenInfo.new(0.12), {BackgroundTransparency = 0.2}) end)
+	ddButton.Parent = card
+
+	-- Dropdown menu on overlay
+	local menu = New("Frame", {
+		BackgroundColor3 = Colors.Surface,
+		BackgroundTransparency = 0.15,
+		Visible = false,
+		Size = UDim2.fromOffset(260, 0),
+		ZIndex = 200,
+		AutomaticSize = Enum.AutomaticSize.Y,
+	}, {})
+	addCorner(menu, 8)
+	addStroke(menu, Colors.Stroke, 1, 0.5)
+	menu.Parent = overlay
+
+	local list = Instance.new("UIListLayout")
+	list.FillDirection = Enum.FillDirection.Vertical
+	list.Padding = UDim.new(0, 0)
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Parent = menu
+
+	local function positionMenu()
+		local absPos = ddButton.AbsolutePosition
+		local absSize = ddButton.AbsoluteSize
+		local screen = gui.AbsoluteSize
+		local wantedX = absPos.X
+		local wantedY = absPos.Y + absSize.Y + 6
+		menu.Position = UDim2.fromOffset(math.clamp(wantedX, 8, math.max(8, screen.X - 268)), math.clamp(wantedY, 8, math.max(8, screen.Y - 8)))
+	end
+	ddButton:GetPropertyChangedSignal("AbsolutePosition"):Connect(function() if menu.Visible then positionMenu() end end)
+	pagePlayerContent:GetPropertyChangedSignal("CanvasPosition"):Connect(function() if menu.Visible then positionMenu() end end)
+
+	local function clearMenu()
+		for _,c in ipairs(menu:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+	end
+	local function rebuildMenu()
+		clearMenu()
+		local myPlr = Players.LocalPlayer
+		for _,p in ipairs(Players:GetPlayers()) do
+			if p ~= myPlr then
+				local it = New("TextButton", {
+					Text = p.Name,
+					Font = Enum.Font.Gotham,
+					TextSize = 14,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					TextColor3 = Colors.TextPrimary,
+					AutoButtonColor = false,
+					BackgroundColor3 = Colors.Surface,
+					BackgroundTransparency = 1,
+					Size = UDim2.new(1, 0, 0, 30),
+				}, {})
+				local pad = Instance.new("UIPadding")
+				pad.PaddingLeft = UDim.new(0, 10)
+				pad.Parent = it
+				it.MouseEnter:Connect(function() tween(it, TweenInfo.new(0.12), {BackgroundTransparency = 0}) end)
+				it.MouseLeave:Connect(function() tween(it, TweenInfo.new(0.12), {BackgroundTransparency = 1}) end)
+				it.Activated:Connect(function()
+					selectedName = p.Name
+					ddButton.Text = p.Name .. " ▾"
+					menu.Visible = false
+					overlay.Visible = false
+				end)
+				it.Parent = menu
+			end
+		end
+	end
+
+	overlay.InputBegan:Connect(function(_inp)
+		if menu.Visible then
+			menu.Visible = false
+			overlay.Visible = false
+		end
+	end)
+	ddButton.Activated:Connect(function()
+		local willOpen = not menu.Visible
+		if willOpen then
+			rebuildMenu()
+			positionMenu()
+		end
+		menu.Visible = willOpen
+		overlay.Visible = willOpen
+	end)
+
+	local tpBtn = New("TextButton", {
+		Text = "Teleport ke Player",
+		Font = Enum.Font.GothamSemibold,
+		TextSize = 16,
+		TextColor3 = Colors.TextPrimary,
+		AutoButtonColor = false,
+		BackgroundColor3 = Colors.Accent,
+		BackgroundTransparency = 0.05,
+		Position = UDim2.fromOffset(270, 0),
+		Size = UDim2.fromOffset(200, 34),
+	}, {})
+	addCorner(tpBtn, 10)
+	addStroke(tpBtn, Colors.Stroke, 1, 0.4)
+	tpBtn.MouseEnter:Connect(function() tween(tpBtn, TweenInfo.new(0.12), {BackgroundTransparency = 0}) end)
+	tpBtn.MouseLeave:Connect(function() tween(tpBtn, TweenInfo.new(0.12), {BackgroundTransparency = 0.05}) end)
+	tpBtn.Parent = card
+
+	tpBtn.Activated:Connect(function()
+		local name = selectedName
+		if not name then return end
+		local myPlr = Players.LocalPlayer
+		local myChar = myPlr and myPlr.Character
+		local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+		local target
+		for _,p in ipairs(Players:GetPlayers()) do if p.Name == name then target = p break end end
+		if not target then return end
+		local tchar = target.Character
+		local thrp = tchar and tchar:FindFirstChild("HumanoidRootPart")
+		if not (myHRP and thrp) then return end
+		local offset = CFrame.new(0, 0, 3)
+		myHRP.CFrame = thrp.CFrame * offset
+	end)
+end
+
 -- Other pages
 do
 	local label = New("TextLabel", {
@@ -2730,7 +2515,7 @@ do
 	addCorner(rejoinCard, 12)
 	addStroke(rejoinCard, Colors.Stroke, 1, 0.4)
 	addGradient(rejoinCard, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-	rejoinCard.Parent = pageServer
+	rejoinCard.Parent = pageServerContent
 
 	local btnSame = New("TextButton", {
 		Text = "Rejoin (Same Server)",
@@ -2789,7 +2574,7 @@ do
 	addCorner(logCard, 12)
 	addStroke(logCard, Colors.Stroke, 1, 0.4)
 	addGradient(logCard, Color3.fromRGB(40,30,62), Color3.fromRGB(32,24,48), 90)
-	logCard.Parent = pageServer
+	logCard.Parent = pageServerContent
 
 	local logTitle = New("TextLabel", {
 		Text = "Status Logs",
@@ -2937,7 +2722,7 @@ end
 
 -- Nav
 local navMain = navButton("Main")
-local navHunt = navButton("Hunt")
+local navPlayer = navButton("Player")
 local navTeleport = navButton("Teleport")
 local navMisc = navButton("Misc")
 local navInfo = navButton("Info")
@@ -2946,7 +2731,7 @@ local navServer = navButton("Server")
 
 local navButtons = {
 	{button = navMain, page = pageMain},
-	{button = navHunt, page = pageHunt},
+	{button = navPlayer, page = pagePlayer},
 	{button = navTeleport, page = pageTeleport},
 	{button = navMisc, page = pageMisc},
 	{button = navInfo, page = pageInfo},
@@ -2963,8 +2748,8 @@ end
 for _, it in ipairs(navButtons) do
 	it.button.Activated:Connect(function() showPage(it.page) end)
 end
-showPage(pageHunt)
-print('[WKHub] Boot: showPage(pageHunt) called')
+showPage(pagePlayer)
+print('[WKHub] Boot: showPage(pagePlayer) called')
 
 -- Minimize -> dock bubble
 local minimized = false
@@ -3012,7 +2797,7 @@ pcall(function()
 	task.defer(function()
 		if gui then gui.Enabled = true end
 		if typeof(setMinimized) == "function" then setMinimized(false) end
-		if typeof(showPage) == "function" and pageHunt then showPage(pageHunt)
-			print('[WKHub] Boot: showPage(pageHunt) called') end
+		if typeof(showPage) == "function" and pagePlayer then showPage(pagePlayer)
+			print('[WKHub] Boot: showPage(pagePlayer) called') end
 	end)
 end)
