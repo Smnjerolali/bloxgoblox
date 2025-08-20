@@ -440,6 +440,9 @@ end
 -- Utility: get CFrame for a teleport target (area + cpIndex)
 local Config = {
 	Teleports = {
+			MountAtin = {
+				[1] = CFrame.fromMatrix(Vector3.new(780.5750732421875, 2176.611572265625, 3922.7177734375), Vector3.new(1, 0, 0), Vector3.new(0, 1, 0), Vector3.new(0, 0, 1))
+			},
 
 		MountTalamau = {
 			[1] = CFrame.fromMatrix(Vector3.new(-655.8442993164062, 1081.611083984375, 281.3544006347656), Vector3.new(0.649083137512207, 0, -0.7607174515724182), Vector3.new(0, 1, 0), Vector3.new(0.7607174515724182, 0, 0.649083137512207))
@@ -1100,7 +1103,7 @@ do
 			end
 		end)
 	end
-local function startLoop()
+	local function startLoop()
 		Salto.loopId = Salto.loopId + 1
 		local myId = Salto.loopId
 		local Players = game:GetService("Players")
@@ -1183,7 +1186,7 @@ local function startLoop()
 			end)
 		end)
 	end
-local function setEnabled(on)
+	local function setEnabled(on)
 		Salto.enabled = on
 		game:GetService("Players").LocalPlayer:SetAttribute("SaltoGakJelas", on)
 		if on then
@@ -1270,8 +1273,8 @@ local function setEnabled(on)
 		applySwitch(true)
 	end)
 
-	
-	
+
+
 	-- Mode button + Walk toggle
 	local modes = {"Normal","Turbo","Insane","Insane++"}
 	local function restartLoopIfOn()
@@ -1351,7 +1354,7 @@ local function setEnabled(on)
 		Salto.walk = savedWalk
 		pcall(function() walkBtn.Text = (savedWalk and "Walk: ON" or "Walk: OFF"); walkBtn.BackgroundColor3 = (savedWalk and Colors.Accent or Color3.fromRGB(58,58,72)) end)
 	end
--- init from saved attribute
+	-- init from saved attribute
 	if game:GetService("Players").LocalPlayer:GetAttribute("SaltoGakJelas") == true then
 		setEnabled(true)
 		applySwitch(false)
@@ -1944,6 +1947,7 @@ do
 		for i = 1, math.max(1, maxCheckpoint) do
 			cpOptions[i] = "Checkpoints "..i
 		end
+		if areaName == "MountAtin" then cpOptions[1] = "Puncak" end -- MountAtin
 		-- cpOptionsOverrideTalamau
 		if areaName == "MountTalamau" then
 			local autoToggle = New("TextButton", {
@@ -2380,6 +2384,71 @@ do
 		end
 
 
+	-- MountAtin Auto Summit: Teleport to Puncak then die to respawn (loop)
+	if areaName == "MountAtin" then
+		local autoToggle = New("TextButton", {
+			Name = "AutoSummitAtinToggle",
+			Text = "Auto Summit: OFF",
+			Font = Enum.Font.GothamSemibold,
+			TextSize = 16,
+			TextColor3 = Colors.TextPrimary,
+			AutoButtonColor = false,
+			BackgroundColor3 = Colors.Surface2,
+			BackgroundTransparency = 0.2,
+			Position = UDim2.fromOffset(150, 86),
+			Size = UDim2.fromOffset(160, 34),
+			Parent = section,
+			ZIndex = 20,
+		}, {})
+		addCorner(autoToggle, 10)
+		addStroke(autoToggle, Colors.Stroke, 1, 0.4)
+		local function applyToggleUI(on)
+			tween(autoToggle, TweenInfo.new(0.12), {
+				BackgroundTransparency = on and 0.05 or 0.2,
+				BackgroundColor3 = on and Colors.Accent or Colors.Surface2,
+			})
+			autoToggle.Text = "Auto Summit: " .. (on and "ON" or "OFF")
+		end
+		if player:GetAttribute("AutoSummitAtin") == nil then
+			player:SetAttribute("AutoSummitAtin", false)
+		end
+		local function stillOn() return player:GetAttribute("AutoSummitAtin") == true end
+		local autoRunning = false
+		local function startAuto()
+			if autoRunning then return end
+			autoRunning = true
+			task.spawn(function()
+				while stillOn() do
+					teleportTo(areaName, 1)
+					-- kill to respawn
+					local char = player.Character or player.CharacterAdded:Wait()
+					local hum = char and char:FindFirstChildOfClass("Humanoid")
+					if hum then hum.Health = 0 end
+					-- wait for respawn
+					do
+						local t = 0
+						local ok = false
+						local con
+						con = player.CharacterAdded:Connect(function() ok = true end)
+						while t < 6 and not ok and stillOn() do task.wait(0.1); t += 0.1 end
+						if con then pcall(function() con:Disconnect() end) end
+					end
+					local cool = 1.0
+					local t = 0
+					while t < cool and stillOn() do task.wait(0.1); t += 0.1 end
+				end
+				autoRunning = false
+			end)
+		end
+		autoToggle.Activated:Connect(function()
+			local on = not stillOn()
+			player:SetAttribute("AutoSummitAtin", on)
+			applyToggleUI(on)
+			if on then startAuto() end
+		end)
+		applyToggleUI(stillOn())
+		if stillOn() then startAuto() end
+	end
 		local busy = false
 		tpBtn.Activated:Connect(function()
 			if busy then return end
@@ -2503,8 +2572,9 @@ do
 
 	createTeleportSection("Mount Horeg Teleport", "MountHoreg", 5)
 	createTeleportSection("Mount Talamau Teleport", "MountTalamau", 1)
-end
+	createTeleportSection("Mount Atin Teleport", "MountAtin", 1)
 
+end
 -- Other pages
 do
 	local label = New("TextLabel", {
