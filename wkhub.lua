@@ -2388,36 +2388,37 @@ do
 		for _,c in ipairs(menu:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
 	end
 	local function rebuildMenu()
-		clearMenu()
-		local myPlr = Players.LocalPlayer
-		for _,p in ipairs(Players:GetPlayers()) do
-			if p ~= myPlr then
-				local it = New("TextButton", {
-					Text = p.Name,
-					Font = Enum.Font.Gotham,
-					TextSize = 14,
-					TextXAlignment = Enum.TextXAlignment.Left,
-					TextColor3 = Colors.TextPrimary,
-					AutoButtonColor = false,
-					BackgroundColor3 = Colors.Surface,
-					BackgroundTransparency = 1,
-					Size = UDim2.new(1, 0, 0, 30),
-				}, {})
-				local pad = Instance.new("UIPadding")
-				pad.PaddingLeft = UDim.new(0, 10)
-				pad.Parent = it
-				it.MouseEnter:Connect(function() tween(it, TweenInfo.new(0.12), {BackgroundTransparency = 0}) end)
-				it.MouseLeave:Connect(function() tween(it, TweenInfo.new(0.12), {BackgroundTransparency = 1}) end)
-				it.Activated:Connect(function()
-					selectedName = p.Name
-					ddButton.Text = p.Name .. " ▾"
-					menu.Visible = false
-					overlay.Visible = false
-				end)
-				it.Parent = menu
-			end
+	clearMenu()
+	local myName = Players.LocalPlayer.Name
+	for _,child in ipairs(workspace:GetChildren()) do
+		if child:IsA("Model") and child.Name ~= myName and child:FindFirstChildOfClass("Humanoid") then
+			local name = child.Name
+			local it = New("TextButton", {
+				Text = name,
+				Font = Enum.Font.Gotham,
+				TextSize = 14,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextColor3 = Colors.TextPrimary,
+				AutoButtonColor = false,
+				BackgroundColor3 = Colors.Surface,
+				BackgroundTransparency = 1,
+				Size = UDim2.new(1, 0, 0, 30),
+			}, {})
+			local pad = Instance.new("UIPadding")
+			pad.PaddingLeft = UDim.new(0, 10)
+			pad.Parent = it
+			it.MouseEnter:Connect(function() tween(it, TweenInfo.new(0.12), {BackgroundTransparency = 0}) end)
+			it.MouseLeave:Connect(function() tween(it, TweenInfo.new(0.12), {BackgroundTransparency = 1}) end)
+			it.Activated:Connect(function()
+				selectedName = name
+				ddButton.Text = name .. " ▾"
+				menu.Visible = false
+				overlay.Visible = false
+			end)
+			it.Parent = menu
 		end
 	end
+end
 
 	overlay.InputBegan:Connect(function(_inp)
 		if menu.Visible then
