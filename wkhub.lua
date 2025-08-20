@@ -20,32 +20,32 @@ local SavedConfigKeys = {
 }
 local function applySavedConfigFromTeleportDataOrAttribute()
 
--- Auto-save on attribute changes (debounced)
-local suppressAutoSave = true
-local autoSavePending = false
-local function scheduleAutoSave()
-	if suppressAutoSave then return end
-	if autoSavePending then return end
-	autoSavePending = true
-	task.delay(0.5, function()
-		autoSavePending = false
+	-- Auto-save on attribute changes (debounced)
+	local suppressAutoSave = true
+	local autoSavePending = false
+	local function scheduleAutoSave()
 		if suppressAutoSave then return end
-		local data = {}
-		for i=1,#SavedConfigKeys do local k = SavedConfigKeys[i]; local v = player:GetAttribute(k); if v ~= nil then data[k] = v end end
-		local ok, json = pcall(function() return HttpService:JSONEncode(data) end)
-		if ok then player:SetAttribute("SavedConfigJSON", json) end
-	end)
-end
-local AutoSaveConns = {}
-for i=1,#SavedConfigKeys do
-	local k = SavedConfigKeys[i]
-	local c = player:GetAttributeChangedSignal(k):Connect(function()
-		scheduleAutoSave()
-	end)
-	table.insert(AutoSaveConns, c)
-end
--- release suppression after boot so initial UI setup doesn't spam saves
-task.delay(2.0, function() suppressAutoSave = false end)
+		if autoSavePending then return end
+		autoSavePending = true
+		task.delay(0.5, function()
+			autoSavePending = false
+			if suppressAutoSave then return end
+			local data = {}
+			for i=1,#SavedConfigKeys do local k = SavedConfigKeys[i]; local v = player:GetAttribute(k); if v ~= nil then data[k] = v end end
+			local ok, json = pcall(function() return HttpService:JSONEncode(data) end)
+			if ok then player:SetAttribute("SavedConfigJSON", json) end
+		end)
+	end
+	local AutoSaveConns = {}
+	for i=1,#SavedConfigKeys do
+		local k = SavedConfigKeys[i]
+		local c = player:GetAttributeChangedSignal(k):Connect(function()
+			scheduleAutoSave()
+		end)
+		table.insert(AutoSaveConns, c)
+	end
+	-- release suppression after boot so initial UI setup doesn't spam saves
+	task.delay(2.0, function() suppressAutoSave = false end)
 
 	pcall(function()
 		local td = nil
@@ -176,8 +176,8 @@ local function logStatus(msg)
 	if #StatusLog.buffer > 200 then table.remove(StatusLog.buffer, 1) end
 	local cb = StatusLog.onUpdate
 	if cb then pcall(function()
-		cb(table.concat(StatusLog.buffer, "\n"))
-	end) end
+			cb(table.concat(StatusLog.buffer, "\n"))
+		end) end
 end
 
 
@@ -2093,91 +2093,91 @@ do
 		end
 
 
-	-- MountAtin Auto Summit: Teleport to Puncak then die to respawn (loop)
-	if areaName == "MountAtin" then
-		local autoToggle = New("TextButton", {
-			Name = "AutoSummitAtinToggle",
-			Text = "Auto Summit: OFF",
-			Font = Enum.Font.GothamSemibold,
-			TextSize = 16,
-			TextColor3 = Colors.TextPrimary,
-			AutoButtonColor = false,
-			BackgroundColor3 = Colors.Surface2,
-			BackgroundTransparency = 0.2,
-			Position = UDim2.fromOffset(150, 86),
-			Size = UDim2.fromOffset(160, 34),
-			Parent = section,
-			ZIndex = 20,
-		}, {})
-		addCorner(autoToggle, 10)
-		addStroke(autoToggle, Colors.Stroke, 1, 0.4)
-		local function applyToggleUI(on)
-			tween(autoToggle, TweenInfo.new(0.12), {
-				BackgroundTransparency = on and 0.05 or 0.2,
-				BackgroundColor3 = on and Colors.Accent or Colors.Surface2,
-			})
-			autoToggle.Text = "Auto Summit: " .. (on and "ON" or "OFF")
-		end
-		if player:GetAttribute("AutoSummitAtin") == nil then
-			player:SetAttribute("AutoSummitAtin", false)
-		end
-		-- Restore toggle state from TeleportData if present
-		pcall(function()
-			if TeleportService and TeleportService.GetLocalPlayerTeleportData then
-				local td = TeleportService:GetLocalPlayerTeleportData()
-				if td and td.AutoSummitAtin == true then player:SetAttribute("AutoSummitAtin", true) end
+		-- MountAtin Auto Summit: Teleport to Puncak then die to respawn (loop)
+		if areaName == "MountAtin" then
+			local autoToggle = New("TextButton", {
+				Name = "AutoSummitAtinToggle",
+				Text = "Auto Summit: OFF",
+				Font = Enum.Font.GothamSemibold,
+				TextSize = 16,
+				TextColor3 = Colors.TextPrimary,
+				AutoButtonColor = false,
+				BackgroundColor3 = Colors.Surface2,
+				BackgroundTransparency = 0.2,
+				Position = UDim2.fromOffset(150, 86),
+				Size = UDim2.fromOffset(160, 34),
+				Parent = section,
+				ZIndex = 20,
+			}, {})
+			addCorner(autoToggle, 10)
+			addStroke(autoToggle, Colors.Stroke, 1, 0.4)
+			local function applyToggleUI(on)
+				tween(autoToggle, TweenInfo.new(0.12), {
+					BackgroundTransparency = on and 0.05 or 0.2,
+					BackgroundColor3 = on and Colors.Accent or Colors.Surface2,
+				})
+				autoToggle.Text = "Auto Summit: " .. (on and "ON" or "OFF")
 			end
-		end)
-		local function stillOn() return player:GetAttribute("AutoSummitAtin") == true end
-		local autoRunning = false
-		local function startAuto()
-			if autoRunning then return end
-			autoRunning = true
-			task.spawn(function()
-				while stillOn() do
-					teleportTo(areaName, 1)
-					-- kill to respawn
-					local char = player.Character or player.CharacterAdded:Wait()
-					local hum = char and char:FindFirstChildOfClass("Humanoid")
-					if hum then hum.Health = 0 end
-					-- wait for respawn
-					do
+			if player:GetAttribute("AutoSummitAtin") == nil then
+				player:SetAttribute("AutoSummitAtin", false)
+			end
+			-- Restore toggle state from TeleportData if present
+			pcall(function()
+				if TeleportService and TeleportService.GetLocalPlayerTeleportData then
+					local td = TeleportService:GetLocalPlayerTeleportData()
+					if td and td.AutoSummitAtin == true then player:SetAttribute("AutoSummitAtin", true) end
+				end
+			end)
+			local function stillOn() return player:GetAttribute("AutoSummitAtin") == true end
+			local autoRunning = false
+			local function startAuto()
+				if autoRunning then return end
+				autoRunning = true
+				task.spawn(function()
+					while stillOn() do
+						teleportTo(areaName, 1)
+						-- kill to respawn
+						local char = player.Character or player.CharacterAdded:Wait()
+						local hum = char and char:FindFirstChildOfClass("Humanoid")
+						if hum then hum.Health = 0 end
+						-- wait for respawn
+						do
+							local t = 0
+							local ok = false
+							local con
+							con = player.CharacterAdded:Connect(function() ok = true end)
+							while t < 6 and not ok and stillOn() do task.wait(0.1); t += 0.1 end
+							if con then pcall(function() con:Disconnect() end) end
+						end
+						local cool = 1.0
 						local t = 0
-						local ok = false
-						local con
-						con = player.CharacterAdded:Connect(function() ok = true end)
-						while t < 6 and not ok and stillOn() do task.wait(0.1); t += 0.1 end
-						if con then pcall(function() con:Disconnect() end) end
-					end
-					local cool = 1.0
-					local t = 0
-					while t < cool and stillOn() do task.wait(0.1); t += 0.1 end
-					-- after cooldown, rejoin same server with 10s delay
-					if stillOn() then
-						local delaySec = 10
-						local t2 = 0
-						while t2 < delaySec and stillOn() do task.wait(0.1); t2 += 0.1 end
+						while t < cool and stillOn() do task.wait(0.1); t += 0.1 end
+						-- after cooldown, rejoin same server with 10s delay
 						if stillOn() then
-							local placeId = game.PlaceId
-							local jobId = game.JobId
-							pcall(function()
-								TeleportService:TeleportToPlaceInstance(placeId, jobId, player, { AutoSummitAtin = true, ConfigJSON = player:GetAttribute("SavedConfigJSON") })
-							end)
+							local delaySec = 10
+							local t2 = 0
+							while t2 < delaySec and stillOn() do task.wait(0.1); t2 += 0.1 end
+							if stillOn() then
+								local placeId = game.PlaceId
+								local jobId = game.JobId
+								pcall(function()
+									TeleportService:TeleportToPlaceInstance(placeId, jobId, player, { AutoSummitAtin = true, ConfigJSON = player:GetAttribute("SavedConfigJSON") })
+								end)
+							end
 						end
 					end
-end
-				autoRunning = false
+					autoRunning = false
+				end)
+			end
+			autoToggle.Activated:Connect(function()
+				local on = not stillOn()
+				player:SetAttribute("AutoSummitAtin", on)
+				applyToggleUI(on)
+				if on then startAuto() end
 			end)
+			applyToggleUI(stillOn())
+			if stillOn() then startAuto() end
 		end
-		autoToggle.Activated:Connect(function()
-			local on = not stillOn()
-			player:SetAttribute("AutoSummitAtin", on)
-			applyToggleUI(on)
-			if on then startAuto() end
-		end)
-		applyToggleUI(stillOn())
-		if stillOn() then startAuto() end
-	end
 		local busy = false
 		tpBtn.Activated:Connect(function()
 			if busy then return end
@@ -2465,7 +2465,7 @@ do
 		local thrp = tchar and tchar:FindFirstChild("HumanoidRootPart")
 		if not (myHRP and thrp) then return end
 		local offset = CFrame.new(0, 0, 3)
-		myHRP.CFrame = thrp.CFrame * offset
+		myChar:PivotTo(thrp.CFrame * offset)
 	end)
 end
 
@@ -2536,7 +2536,7 @@ do
 	btnSame.Activated:Connect(function()
 		logStatus("Rejoining same server...")
 		local ok, err = pcall(function()
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player, { ConfigJSON = player:GetAttribute("SavedConfigJSON") })
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player, { ConfigJSON = player:GetAttribute("SavedConfigJSON") })
 		end)
 		if not ok then logStatus("Rejoin failed: "..tostring(err)) end
 	end)
@@ -2560,7 +2560,7 @@ do
 	btnNew.Activated:Connect(function()
 		logStatus("Rejoining a new server...")
 		local ok, err = pcall(function()
-            TeleportService:Teleport(game.PlaceId, player, { ConfigJSON = player:GetAttribute("SavedConfigJSON") })
+			TeleportService:Teleport(game.PlaceId, player, { ConfigJSON = player:GetAttribute("SavedConfigJSON") })
 		end)
 		if not ok then logStatus("Rejoin failed: "..tostring(err)) end
 	end)
