@@ -19,6 +19,34 @@ local SavedConfigKeys = {
 	"GodMode","SaltoGakJelas","SaltoMode","SaltoWalk","WalkSpeed","Fly","NoClip","AutoGhostShark","AutoSharkHunt","AutoWormHunt","AutoSummitTalamau","AutoSummitAtin"
 }
 local function applySavedConfigFromTeleportDataOrAttribute()
+
+-- Auto-save on attribute changes (debounced)
+local suppressAutoSave = true
+local autoSavePending = false
+local function scheduleAutoSave()
+	if suppressAutoSave then return end
+	if autoSavePending then return end
+	autoSavePending = true
+	task.delay(0.5, function()
+		autoSavePending = false
+		if suppressAutoSave then return end
+		local data = {}
+		for i=1,#SavedConfigKeys do local k = SavedConfigKeys[i]; local v = player:GetAttribute(k); if v ~= nil then data[k] = v end end
+		local ok, json = pcall(function() return HttpService:JSONEncode(data) end)
+		if ok then player:SetAttribute("SavedConfigJSON", json) end
+	end)
+end
+local AutoSaveConns = {}
+for i=1,#SavedConfigKeys do
+	local k = SavedConfigKeys[i]
+	local c = player:GetAttributeChangedSignal(k):Connect(function()
+		scheduleAutoSave()
+	end)
+	table.insert(AutoSaveConns, c)
+end
+-- release suppression after boot so initial UI setup doesn't spam saves
+task.delay(2.0, function() suppressAutoSave = false end)
+
 	pcall(function()
 		local td = nil
 		if TeleportService and TeleportService.GetLocalPlayerTeleportData then
@@ -38,6 +66,39 @@ local function applySavedConfigFromTeleportDataOrAttribute()
 	end)
 end
 applySavedConfigFromTeleportDataOrAttribute()
+
+-- Auto-save on attribute changes (debounced)
+do
+	local SAVE_DEBOUNCE = 0.35
+	local pending = false
+	local function buildSavedConfigTable()
+		local t = {}
+		for i=1,#SavedConfigKeys do local k = SavedConfigKeys[i]; local v = player:GetAttribute(k); if v ~= nil then t[k] = v end end
+		return t
+	end
+	local function writeSavedConfigJSON()
+		local ok, json = pcall(function() return HttpService:JSONEncode(buildSavedConfigTable()) end)
+		if ok then player:SetAttribute("SavedConfigJSON", json) end
+	end
+	local function scheduleSavedConfigWrite()
+		if pending then return end
+		pending = true
+		task.delay(SAVE_DEBOUNCE, function()
+			pending = false
+			writeSavedConfigJSON()
+		end)
+	end
+	-- Connect to each saved key
+	for i=1,#SavedConfigKeys do
+		local key = SavedConfigKeys[i]
+		pcall(function()
+			player:GetAttributeChangedSignal(key):Connect(scheduleSavedConfigWrite)
+		end)
+	end
+	-- Initial snapshot
+	task.defer(scheduleSavedConfigWrite)
+end
+
 
 
 -- Try load theme (optional, safe fallback)
